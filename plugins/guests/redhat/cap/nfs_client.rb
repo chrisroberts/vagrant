@@ -12,9 +12,11 @@ module VagrantPlugins
 
             if test $(ps -o comm= 1) == 'systemd'; then
               /bin/systemctl restart rpcbind nfs
+              /bin/systemctl enable rpcbind
             else
               /etc/init.d/rpcbind restart
               /etc/init.d/nfs restart
+              /sbin/chkconfig rpcbind on
             fi
           EOH
         end
