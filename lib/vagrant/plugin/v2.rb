@@ -11,6 +11,7 @@ module Vagrant
       autoload :Command, "vagrant/plugin/v2/command"
       autoload :Communicator, "vagrant/plugin/v2/communicator"
       autoload :Config, "vagrant/plugin/v2/config"
+      autoload :DesiredState, "vagrant/plugin/v2/desired_state"
       autoload :Guest,  "vagrant/plugin/v2/guest"
       autoload :Host,   "vagrant/plugin/v2/host"
       autoload :Manager, "vagrant/plugin/v2/manager"

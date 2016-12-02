@@ -20,6 +20,11 @@ module VagrantPlugins
         SSHConfig
       end
 
+      config("desired_state") do
+        require File.expand_path("../config/desired_state", __FILE__)
+        DesiredStateConfig
+      end
+
       config("package") do
         require File.expand_path("../config/package", __FILE__)
         PackageConfig

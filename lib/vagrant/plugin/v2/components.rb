@@ -23,6 +23,11 @@ module Vagrant
         # @return [Hash<Symbol, Registry>]
         attr_reader :configs
 
+        # This contains all the desired states
+        #
+        # @return [Registry<Symbol, Array<Class, Hash>>]
+        attr_reader :desired_states
+
         # This contains all the guests and their parents.
         #
         # @return [Registry<Symbol, Array<Class, Symbol>>]
@@ -70,6 +75,7 @@ module Vagrant
 
           @commands = Registry.new
           @configs = Hash.new { |h, k| h[k] = Registry.new }
+          @desired_states = Registry.new
           @guests  = Registry.new
           @guest_capabilities = Hash.new { |h, k| h[k] = Registry.new }
           @hosts   = Registry.new

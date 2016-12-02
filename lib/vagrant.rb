@@ -107,6 +107,7 @@ module Vagrant
     c.register([:"2", :command])      { Plugin::V2::Command }
     c.register([:"2", :communicator]) { Plugin::V2::Communicator }
     c.register([:"2", :config])       { Plugin::V2::Config }
+    c.register([:"2", :desired_state]){ Plugin::V2::DesiredState }
     c.register([:"2", :guest])        { Plugin::V2::Guest }
     c.register([:"2", :host])         { Plugin::V2::Host }
     c.register([:"2", :provider])     { Plugin::V2::Provider }

@@ -233,6 +233,17 @@ module Vagrant
           nil
         end
 
+        # Registers additional desired states to be available.
+        #
+        # @param [String] name Name of desired state
+        # @param [Hash] options List of options for the desired state.
+        def self.desired_state(name, options=nil, &block)
+          components.desired_states.register(name.to_sym) do
+            [block.call, options]
+          end
+          nil
+        end
+
         # Registers additional synced folder implementations.
         #
         # @param [String] name Name of the implementation.

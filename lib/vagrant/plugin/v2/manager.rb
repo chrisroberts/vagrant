@@ -194,6 +194,28 @@ module Vagrant
           end
         end
 
+        # This returns all registered desired states.
+        #
+        # @return [Registry]
+        def desired_states
+          Registry.new.tap do |result|
+            @registered.each do |plugin|
+              result.merge!(plugin.components.desired_states)
+            end
+          end
+        end
+
+        # This returns all the config classes for the various pushes.
+        #
+        # @return [Registry]
+        def desired_state_configs
+          Registry.new.tap do |result|
+            @registered.each do |plugin|
+              result.merge!(plugin.components.configs[:desired_state])
+            end
+          end
+        end
+
         # This returns all synced folder implementations.
         #
         # @return [Registry]
