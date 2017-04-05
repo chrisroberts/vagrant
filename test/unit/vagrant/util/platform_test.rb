@@ -52,8 +52,25 @@ describe Vagrant::Util::Platform do
   end
 
   describe "#windows_unc_path" do
+    let(:unc_path){ "\\\\?\\c:\\foo" }
+
     it "correctly converts a path" do
-      expect(described_class.windows_unc_path("c:/foo").to_s).to eql("\\\\?\\c:\\foo")
+      expect(described_class.windows_unc_path("c:/foo").to_s).to eql(unc_path)
+    end
+
+    it "correctly converts a Pathname path" do
+      path = Pathname.new("c:/foo")
+      expect(described_class.windows_unc_path(path).to_s).to eql(unc_path)
+    end
+
+    it "correctly compacts a Pathname path" do
+      path = Pathname.new("c:/bar/../foo")
+      expect(described_class.windows_unc_path(path).to_s).to eql(unc_path)
+    end
+
+    it "does not modify given UNC path" do
+      path = "\\\\servername\\path"
+      expect(described_class.windows_unc_path(path).to_s).to eql(path)
     end
   end
 end

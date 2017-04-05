@@ -187,6 +187,9 @@ module Vagrant
               path[0] = path[0].upcase
             end
 
+            # Convert path to UNC
+            path = windows_unc_path(path)
+
             path = Pathname.new(path)
           end
 
@@ -197,13 +200,15 @@ module Vagrant
         # @param [String] path Path to convert to UNC for Windows
         # @return [String]
         def windows_unc_path(path)
-          path = path.gsub("/", "\\")
+          path = path.respond_to?(:cleanpath) ? path.cleanpath : path.to_s
+          path = path.to_s.gsub("/", "\\")
 
-          # If the path is just a drive letter, then return that as-is
-          return path + "\\" if path =~ /^[a-zA-Z]:\\?$/
-
-          # Convert to UNC path
-          "\\\\?\\" + path.gsub("/", "\\")
+          # Only make modifications if dealing with a local path
+          if path.downcase.match(/^[a-z]:/)
+            "\\\\?\\" + path
+          else
+            path
+          end
         end
 
         # Returns a boolean noting whether the terminal supports color.
