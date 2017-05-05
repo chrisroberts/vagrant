@@ -239,7 +239,15 @@ module Vagrant
         Gem::Dependency.new(name, gem_version)
       end
 
-      @logger.debug("Dependency list for installation: #{plugin_deps}")
+      if Vagrant.strict_dependency_enforcement
+        @logger.debug("Enabling strict dependency enforcement")
+        plugin_deps += vagrant_internal_specs.map{|s| Gem::Dependency.new(s.name, s.version) }
+      else
+        @logger.debug("Disabling strict dependency enforcement")
+      end
+
+      @logger.debug("Dependency list for installation:\n - " \
+        "#{plugin_deps.map{|d| "#{d.name} #{d.requirement}"}.join("\n - ")}")
 
       all_sources = source_list.values.flatten.uniq
       default_sources = DEFAULT_GEM_SOURCES & all_sources
