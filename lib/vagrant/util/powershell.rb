@@ -72,7 +72,10 @@ module Vagrant
             "-NoProfile",
             "-NonInteractive",
             "-ExecutionPolicy", "Bypass",
-            "#{env}&('#{path}')",
+
+#            "#{env}&('#{path}')", -- This needs to be fixed up
+
+            "-File", path,
             args
           ].flatten
 

@@ -66,7 +66,8 @@ module VagrantPlugins
           # Extra arguments if we have any
           ps_info[:extra_args] = options[:extra_args]
 
-          result = ready_ps_remoting_for(machine, ps_info)
+          #          result = ready_ps_remoting_for(machine, ps_info)
+          result = {}
 
           machine.ui.detail(
             "Creating powershell session to #{ps_info[:host]}:#{ps_info[:port]}")

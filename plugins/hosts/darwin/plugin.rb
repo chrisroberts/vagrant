@@ -21,6 +21,11 @@ module VagrantPlugins
         Cap::RDP
       end
 
+      host_capability("linux", "ps_client") do
+        require_relative "cap/ps"
+        Cap::PS
+      end
+
       host_capability("darwin", "smb_installed") do
         require_relative "cap/smb"
         Cap::SMB
