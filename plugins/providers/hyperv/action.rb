@@ -78,6 +78,7 @@ module VagrantPlugins
             b2.use PackageSetupFolders
             b2.use PackageSetupFiles
             b2.use action_halt
+            b2.use PackagePrepare
             b2.use SyncedFolderCleanup
             b2.use Package
             b2.use PackageVagrantfile
@@ -283,6 +284,7 @@ module VagrantPlugins
       action_root = Pathname.new(File.expand_path("../action", __FILE__))
       autoload :PackageSetupFolders, action_root.join("package_setup_folders")
       autoload :PackageSetupFiles, action_root.join("package_setup_files")
+      autoload :PackagePrepare, action_root.join("package_prepare")
       autoload :PackageVagrantfile, action_root.join("package_vagrantfile")
       autoload :PackageMetadataJson, action_root.join("package_metadata_json")
       autoload :Export, action_root.join("export")

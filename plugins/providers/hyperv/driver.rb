@@ -122,6 +122,14 @@ module VagrantPlugins
         execute("set_vm_integration_services.ps1", config)
       end
 
+      def enable_checkpoints
+        execute("checkpoints.ps1", {VmID: vm_id, Action: "enable"})
+      end
+
+      def disable_checkpoints
+        execute("checkpoints.ps1", {VmID: vm_id, Action: "disable"})
+      end
+
       protected
 
       def execute_powershell(path, options, &block)

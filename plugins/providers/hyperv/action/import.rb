@@ -23,6 +23,9 @@ module VagrantPlugins
           auto_stop_action = env[:machine].provider_config.auto_stop_action
           enable_virtualization_extensions = env[:machine].provider_config.enable_virtualization_extensions
           vm_integration_services = env[:machine].provider_config.vm_integration_services
+          automatic_checkpoints = !!env[:machine].provider_config.automatic_checkpoints
+
+          checkpoints_str = automatic_checkpoints ? "enabled" : "disabled"
 
           env[:ui].output("Configured Dynamic memory allocation, maxmemory is #{maxmemory}") if maxmemory
           env[:ui].output("Configured startup memory is #{memory}") if memory
@@ -32,6 +35,7 @@ module VagrantPlugins
           env[:ui].output("Configured differencing disk instead of cloning") if differencing_disk
           env[:ui].output("Configured automatic start action is #{auto_start_action}") if auto_start_action
           env[:ui].output("Configured automatic stop action is #{auto_stop_action}") if auto_stop_action
+          env[:ui].output("Configured automatic checkpoints is #{checkpoints_str}")
 
           if !vm_dir.directory? || !hd_dir.directory?
             raise Errors::BoxInvalid
@@ -166,6 +170,14 @@ module VagrantPlugins
 
           vm_integration_services[:VmId] = server["id"]
           env[:machine].provider.driver.set_vm_integration_services(vm_integration_services)
+
+          if automatic_checkpoints
+            env[:ui].detail("Enabling automatic checkpoints")
+            env[:machine].provider.driver.enable_checkpoints
+          else
+            env[:ui].detail("Disabling automatic checkpoints")
+            env[:machine].provider.driver.disable_checkpoints
+          end
 
           env[:ui].detail("Successfully imported a VM with name: #{server['name']}")
           env[:machine].id = server["id"]

@@ -15,8 +15,10 @@ module VagrantPlugins
       attr_accessor :auto_stop_action #action on automatic stop of VM. Values: ShutDown, TurnOff, Save
       attr_accessor :enable_virtualization_extensions # Enable virtualization extensions (nested virtualization). Values: true, false
       attr_accessor :vm_integration_services # Options for VMServiceIntegration [Hash]
+      attr_accessor :automatic_checkpoints # Enable/disable automatic VM checkpoints [Boolean]
 
       def initialize
+        @automatic_checkpoints = UNSET_VALUE
         @ip_address_timeout = UNSET_VALUE
         @memory = UNSET_VALUE
         @maxmemory = UNSET_VALUE
@@ -39,6 +41,7 @@ module VagrantPlugins
       end
 
       def finalize!
+        @automatic_checkpoints = false if @automatic_checkpoints == UNSET_VALUE
         if @ip_address_timeout == UNSET_VALUE
           @ip_address_timeout = 120
         end
