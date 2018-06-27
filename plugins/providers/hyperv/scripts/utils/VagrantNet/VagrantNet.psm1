@@ -12,6 +12,9 @@ public static extern void HNSCall(
     Add-Type -MemberDefinition $vmcompute -Namespace VmCompute.PrivatePInvoke -Name NativeMethods -PassThru
 }
 
+# Always stop when errors are encountered unless instructed not to
+$ErrorActionPreference = "Stop"
+
 # Interface into HNS
 function Invoke-VagrantHNS {
     param (
@@ -45,6 +48,45 @@ function Invoke-VagrantHNS {
         $output = $output.Output
     }
     return $output
+<#
+.SYNOPSIS
+
+Invoke the requested action within the Windows Host
+Networking Service.
+
+.DESCRIPTION
+
+Invokes the requested action within the internal Windows
+Host Networking Service API and returns the result.
+
+.PARAMETER Method
+
+DELETE, GET, or POST.
+
+.PARAMETER Type
+
+activities, endpoints, endpointstates, networks, policylists, or plugins.
+
+.PARAMETER Action
+
+Action to perform for the given type.
+
+.PARAMETER Request
+
+Data for the request.
+
+.PARAMETER Id
+
+Specific ID associated with the requested action.
+
+.INPUTS
+
+None.
+
+.OUTPUTS
+
+Result of the action.
+#>
 }
 
 ### HNSNetwork Functions
@@ -55,6 +97,26 @@ function Get-VagrantHNSNetwork {
         [Guid] $Id = [Guid]::Empty
     )
     return Invoke-VagrantHNS -Type networks -Method GET -Id $Id
+<#
+.SYNOPSIS
+
+Get network instance(s).
+
+.DESCRIPTION
+
+Get list of networks available or specific network by ID.
+
+.PARAMETER Id
+
+ID of the network.
+
+.INPUTS
+
+None.
+
+.OUTPUTS
+
+#>
 }
 
 function Remove-VagrantHNSNetwork {
