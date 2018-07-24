@@ -142,6 +142,7 @@ module VagrantPlugins
               b2.use Call, IsState, :saved do |env3, b3|
                 # When state is `:saved` it is a snapshot being restored
                 if !env3[:result]
+                  b3.use Network
                   b3.use Provision
                   b3.use Configure
                   b3.use SetName
@@ -309,6 +310,7 @@ module VagrantPlugins
       autoload :StopInstance, action_root.join('stop_instance')
       autoload :SuspendVM, action_root.join("suspend_vm")
       autoload :WaitForIPAddress, action_root.join("wait_for_ip_address")
+      autoload :Network, action_root.join("network")
       autoload :NetSetVLan, action_root.join("net_set_vlan")
       autoload :NetSetMac, action_root.join("net_set_mac")
       autoload :MessageWillNotDestroy, action_root.join("message_will_not_destroy")

@@ -34,7 +34,7 @@ function Invoke-VagrantHNS {
     $path = "/${Type}"
     if($Id -ne [Guid]::Empty){ $path += "/${Id}" }
     if($Action){ $path += "/${Action}" }
-    $api = Get-VMComputeMethods
+    $api = Get-VagrantVMComputeMethods
     $output = ""
     $result = ""
     $api::HNSCall($Method, $path, "${request}", [ref] $result)
@@ -196,7 +196,7 @@ function New-VagrantHNSEndpoint {
     )
 
     $req = @{
-        Name = $Name,
+        Name = $Name;
         VirtualNetwork = $NetworkId;
         Policies = @()
     }
@@ -213,11 +213,11 @@ function Attach-VagrantHNSEndpoint {
         [parameter(Mandatory=$true)]
         [string] $NetworkAdapterName
     )
-    $req = {
+    $req = @{
         SystemType = "VirtualMachine";
-        VirtualNicName = $NetworkAdapterName
+        VirtualNICName = $NetworkAdapterName;
     }
-    return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "attach" -Request (ConvertTo-Json $req -Depth 5)
+    return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "Add" -Request (ConvertTo-Json $req -Depth 5)
 }
 
 function Detach-VagrantHNSEndpoint {
@@ -225,8 +225,8 @@ function Detach-VagrantHNSEndpoint {
         [parameter(Mandatory=$true)]
         [Guid] $EndpointId
     )
-    $req = { SystemType = "VirtualMachine" }
-    return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "detach" -Request (ConvertTo-Json $req -Depth 5)
+    $req = @{ SystemType = "VirtualMachine" }
+    return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "Remove" -Request (ConvertTo-Json $req -Depth 5)
 }
 
 ### HNSPolicy Functions
@@ -234,9 +234,9 @@ function Detach-VagrantHNSEndpoint {
 function New-VagrantHNSRoutePolicy {
     param (
         [parameter(Mandatory=$true)]
-        [Guid] $EndpointId
+        [Guid] $EndpointId,
         [parameter(Mandatory=$true)]
-        [string] $DestinationPrefix
+        [string] $DestinationPrefix,
         [parameter(Mandatory=$true)]
         [bool] $Encapsulate
     )
@@ -271,7 +271,7 @@ function Remove-VagrantHNSRoutePolicy {
 Export-ModuleMember -Function Invoke-VagrantHNS
 Export-ModuleMember -Function Get-VagrantHNSNetwork
 Export-ModuleMember -Function New-VagrantHNSNetwork
-Export-ModuleMember -Function Remove-VagrantVHNSNetwork
+Export-ModuleMember -Function Remove-VagrantHNSNetwork
 Export-ModuleMember -Function Get-VagrantHNSEndpoint
 Export-ModuleMember -Function New-VagrantHNSEndpoint
 Export-ModuleMember -Function Remove-VagrantVHNSEndpoint

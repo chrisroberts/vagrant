@@ -677,7 +677,7 @@ function Set-VagrantVMSwitch {
         [parameter (Mandatory=$true)]
         [String] $SwitchName
     )
-    $Adapter = Hyper-V\Get-VMNetworkAdapter -VM $VM
+    $Adapter = (Hyper-V\Get-VMNetworkAdapter -VM $VM)[0]
     Hyper-V\Connect-VMNetworkAdapter -VMNetworkAdapter $Adapter -SwitchName $SwitchName
     return $VM
 <#
