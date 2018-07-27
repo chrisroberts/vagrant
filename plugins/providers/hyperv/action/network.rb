@@ -5,8 +5,14 @@ module VagrantPlugins
         include Vagrant::Util::NetworkIP
         include Vagrant::Util::ScopedHashOverride
 
+        PRIVATE_NETWORKS = [
+#          IPAddr.new("10.0.0.0/8").freeze,
+          IPAddr.new("172.16.0.0/12").freeze,
+#          IPAddr.new("192.168.0.0/16").freeze
+        ].freeze
+
         CORE_NETWORK_NAME = "VagrantCore".freeze
-        TRANSPARENT_NETWORK_NAME = "VagrantTransparent".freeze
+        PUBLIC_NETWORK_NAME = "VagrantPublic".freeze
 
         def initialize(app, env)
           @app = app
@@ -54,30 +60,38 @@ module VagrantPlugins
               end
             else
               if type == :public_network
-                network_id = host_networks.detect{|hnet| hnet["Name"] == TRANSPARENT_NETWORK_NAME}["ID"]
+                network_id = host_networks.detect{|hnet| hnet["Name"] == PUBLIC_NETWORK_NAME}["ID"]
               else
                 network_id = host_networks.detect{|hnet| hnet["Name"] == CORE_NETWORK_NAME}["ID"]
               end
             end
             adapter_name = options.fetch(:adapter, "VagrantAdapter#{idx}")
             adapter = vm_adapters.detect{|va| va["Name"] == adapter_name}
-            if adapter
-              adapter_name = adapter["Name"]
-            else
-              machine.provider.driver.execute(:add_vm_network_adapter,
-                "VMID" => machine.id,
-                "AdapterName" => adapter_name
-              )
-            end
+            # if adapter
+            #   machine.provider.driver.execute(:connect_vm_adapter,
+            #     "AdapterID" => adapter["ID"],
+            #     "NetworkID" => network_id
+            #   )
+            # else
+            result = machine.provider.driver.execute(:add_vm_network_adapter,
+              "VMID" => machine.id,
+              "AdapterName" => adapter_name,
+#              "NetworkID" => network_id
+            )
+            #            end
 
-            machine.provider.driver.execute(:connect_network,
+            endpoint = machine.provider.driver.execute(:connect_network,
+              "Name" => "VagrantNetworkAttachment",
               "NetworkID" => network_id,
-              "AdapterName" => adapter_name)
+              "AdapterName" => result["Name"]
+            )
 
             networks << {
               auto_config: true,
               interface: idx,
-              type: :dhcp
+              type: :static,
+              ip: endpoint["IPAddress"],
+              netmask: "255.255.255.0"
             }
           end
           @app.call(env)
@@ -88,34 +102,101 @@ module VagrantPlugins
           end
         end
 
+        # Locate a free subnet of requested size on the host machine
+        #
+        # @param [String, Integer] mask Netmask of the subnet
+        # @param [Vagrant::Machine] machine
+        # @return [String, String] AddressPrefix, Gateway
+        def locate_free_subnet(mask, machine)
+          used_subnets = machine.provider.driver.execute(:get_used_subnets).map do |info|
+            IPAddr.new("#{info["Address"]}/#{info["Netmask"]}")
+          end
+          nets = PRIVATE_NETWORKS.shuffle
+          while !nets.empty?
+            base = nets.pop
+            subnet = IPAddr.new("#{base.to_s}/#{mask}")
+            while used_subnets.any?{|u| u.include?(subnet) || subnet.include?(u) } && base.include?(subnet)
+              subnet = IPAddr.new("#{subnet.to_range.last.succ}/#{mask}")
+            end
+            if base.include?(subnet)
+              if mask.to_s.include?(".")
+                prefix = mask.split(".").map{|m| m.to_i.to_s(2)}.join.count("1")
+              else
+                prefix = mask
+              end
+              return "#{subnet.to_s}/#{prefix}", subnet.succ.succ.to_s
+            end
+          end
+          raise "Failed to find open subnet"
+        end
+
         # Checks for VagrantCoreNet ICS network and
         # creates it if is not available
         def core_setup!(machine)
           host_networks = machine.provider.driver.execute(:get_networks)
-          refresh = false
+          host_adapter_info = machine.provider.driver.execute(:get_physical_adapter)
+          host_adapter = host_adapter_info["Name"]
+
+          if host_networks.none?{|n| n["Name"] == PUBLIC_NETWORK_NAME }
+            host_info = machine.provider.driver.execute(:get_host_subnet)
+            addr = IPAddr.new("#{host_info["Address"]}/#{host_info["Netmask"]}").to_s
+            mask = host_info["Netmask"].to_s.split(".").map{|m| m.to_i.to_s(2)}.join.count("1")
+            @logger.info("creating required public network: #{PUBLIC_NETWORK_NAME}")
+            addr, gateway = locate_free_subnet("24", machine)
+            public_network = machine.provider.driver.execute(:create_network,
+              "Name" => PUBLIC_NETWORK_NAME,
+              "Type" => "NAT",
+              "AddressPrefix" => "172.84.0.0/24",
+              "Gateway" => "172.84.0.1"
+              # "Type" => "Transparent",
+              # "AddressPrefix" => "#{addr}/#{mask}",
+              # "Gateway" => host_info["Gateway"],
+              # "AdapterName" => host_adapter
+            )
+            # @logger.info("creating endpoint for network and attaching to public network")
+            # attempts = 0
+            # begin
+            #   machine.provider.driver.execute(:connect_network,
+            #     "Name" => "#{PUBLIC_NETWORK_NAME}Endpoint",
+            #     "NetworkID" => public_network["ID"],
+            #     "IPAddress" => host_info["Gateway"],
+            #     "Gateway" => "0.0.0.0",
+            #     "CompartmentID" => "1"
+            #   )
+            # rescue => e
+            #   attempts += 1
+            #   if attempts > 10
+            #     raise
+            #   else
+            #     @logger.error("network endpoint connect failed: #{e}")
+            #     sleep(5)
+            #     @logger.info("retrying connection...")
+            #     retry
+            #   end
+            # end
+            sleep(5)
+            host_networks = machine.provider.driver.execute(:get_networks)
+          end
           if host_networks.none?{|n| n["Name"] == CORE_NETWORK_NAME }
+            addr, gateway = locate_free_subnet("24", machine)
             @logger.info("creating required core vagrant network: #{CORE_NETWORK_NAME}")
-            machine.provider.driver.execute(:create_network,
-              "Name" => CORE_NETWORK_NAME,
-              "Type" => "ICS",
-              "AddressPrefix" => "172.20.11.0/24",
-              "Gateway" => "172.20.11.1"
-            )
-            refresh = true
+            begin
+              machine.provider.driver.execute(:create_network,
+                "Name" => CORE_NETWORK_NAME,
+                "Type" => "ICS",
+                "AddressPrefix" => addr,
+                "Gateway" => gateway,
+                "AdapterName" => host_adapter
+              )
+            rescue => e
+              @logger.error("core create failed: #{e}")
+              sleep(5)
+              @logger.info("retrying core network create")
+              retry
+            end
+            host_networks = machine.provider.driver.execute(:get_networks)
           end
-          if host_networks.none?{|n| n["Name"] == TRANSPARENT_NETWORK_NAME }
-            @logger.info("creating required transparent network: #{TRANSPARENT_NETWORK_NAME}")
-            machine.provider.driver.execute(:create_network,
-              "Name" => TRANSPARENT_NETWORK_NAME,
-              "Type" => "Transparent"
-            )
-            refresh = true
-          end
-          if refresh
-            machine.provider.driver.execute(:get_networks)
-          else
-            host_networks
-          end
+          host_networks
         end
       end
     end

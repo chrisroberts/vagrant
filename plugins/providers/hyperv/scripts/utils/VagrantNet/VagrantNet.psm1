@@ -208,24 +208,36 @@ function New-VagrantHNSEndpoint {
 
 function Attach-VagrantHNSEndpoint {
     param (
+        [ValidateSet("VirtualMachine", "Host")]
+        [parameter(Mandatory=$true)]
+        [string] $Type,
         [parameter(Mandatory=$true)]
         [Guid] $EndpointId,
-        [parameter(Mandatory=$true)]
-        [string] $NetworkAdapterName
+        [parameter(Mandatory=$false)]
+        [string] $NetworkAdapterName=$null,
+        [parameter(Mandatory=$false)]
+        [int] $CompartmentId=1
     )
     $req = @{
-        SystemType = "VirtualMachine";
-        VirtualNICName = $NetworkAdapterName;
+        SystemType = $Type;
+    }
+    if($Type -eq "VirtualMachine") {
+        $req += @{ VirtualNICName = $NetworkAdapterName; }
+    } else {
+        $req += @{ CompartmentId = $CompartmentId; }
     }
     return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "Add" -Request (ConvertTo-Json $req -Depth 5)
 }
 
 function Detach-VagrantHNSEndpoint {
     param (
+        [ValidateSet("VirtualMachine", "Host")]
+        [parameter(Mandatory=$true)]
+        [string] $Type,
         [parameter(Mandatory=$true)]
         [Guid] $EndpointId
     )
-    $req = @{ SystemType = "VirtualMachine" }
+    $req = @{ SystemType = "${Type}" }
     return Invoke-VagrantHNS -Type endpoints -Method POST -Id $EndpointId -Action "Remove" -Request (ConvertTo-Json $req -Depth 5)
 }
 
@@ -255,7 +267,7 @@ function New-VagrantHNSRoutePolicy {
     return Invoke-VagrantHNS -Type policylists -Method POST -Request (ConvertTo-Json $req -Depth 10)
 }
 
-function Remove-VagrantHNSRoutePolicy {
+function Remove-VagrantHNSPolicies {
     param (
         [parameter(Mandatory=$true)]
         [Guid] $EndpointId
@@ -265,10 +277,42 @@ function Remove-VagrantHNSRoutePolicy {
             "/endpoints/${EndpointId}"
         );
     }
-    return Invoke-VagrantHNS -type policylists -Method Get -Request (ConvertTo-Json $req -Depth 5)
+    return Invoke-VagrantHNS -type policylists -Method DELETE -Request (ConvertTo-Json $req -Depth 5)
 }
 
-Export-ModuleMember -Function Invoke-VagrantHNS
+function New-VagrantHNSNatPolicy {
+    param (
+        [parameter(Mandatory=$true)]
+        [Guid] $EndpointId,
+        [parameter(Mandatory=$true)]
+        [string] $Protocol="TCP",
+        [parameter(Mandatory=$true)]
+        [int] $InternalPort,
+        [parameter(Mandatory=$true)]
+        [int] $ExternalPort
+    )
+
+    $req = @{
+        References = @(
+            "/endpoints/${EndpointId}"
+        );
+        Policies = @(
+            @{
+                Type = "NAT";
+                Protocol = $Protocol;
+                InternalPort = $InternalPort;
+                ExternalPort = $ExternalPort;
+            }
+        );
+    }
+    return Invoke-VagrantHNS -type policylists -Method POST -Request (ConvertTo-Json $req -Depth 5)
+}
+
+function Get-VagrantHNSPolicy {
+    return Invoke-VagrantHNS -type policylists -Method GET
+}
+
+
 Export-ModuleMember -Function Get-VagrantHNSNetwork
 Export-ModuleMember -Function New-VagrantHNSNetwork
 Export-ModuleMember -Function Remove-VagrantHNSNetwork
@@ -277,5 +321,7 @@ Export-ModuleMember -Function New-VagrantHNSEndpoint
 Export-ModuleMember -Function Remove-VagrantVHNSEndpoint
 Export-ModuleMember -Function Attach-VagrantHNSEndpoint
 Export-ModuleMember -Function Detach-VagrantVHNSEndpoint
+Export-ModuleMember -Function Get-VagrantHNSPolicy
 Export-ModuleMember -Function New-VagrantHNSRoutePolicy
-Export-ModuleMember -Function Remove-VagrantHNSRoutePolicy
+Export-ModuleMember -Function Remove-VagrantHNSPolicies
+Export-ModuleMember -Function New-VagrantHNSNatPolicy
