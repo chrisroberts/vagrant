@@ -17,6 +17,7 @@ module VagrantPlugins
       autoload :Destroy, File.expand_path("../action/destroy", __FILE__)
       autoload :DestroyUnusedNetworkInterfaces, File.expand_path("../action/destroy_unused_network_interfaces", __FILE__)
       autoload :DiscardState, File.expand_path("../action/discard_state", __FILE__)
+      autoload :Drive, File.expand_path("../action/drive", __FILE__)
       autoload :Export, File.expand_path("../action/export", __FILE__)
       autoload :ForcedHalt, File.expand_path("../action/forced_halt", __FILE__)
       autoload :ForwardPorts, File.expand_path("../action/forward_ports", __FILE__)
@@ -64,6 +65,7 @@ module VagrantPlugins
           b.use SetName
           b.use ClearForwardedPorts
           b.use Provision
+          b.use Drives
           b.use EnvSet, port_collision_repair: true
           b.use PrepareForwardedPortCollisionParams
           b.use HandleForwardedPortCollisions

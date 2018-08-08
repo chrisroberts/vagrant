@@ -33,6 +33,7 @@ module VagrantPlugins
       end
 
       def validate(machine)
+        return {}
         errors = _detected_errors
         if @source_directory.nil? || !@source_directory.exist?
           errors << I18n.t("vagrant.config.cloud_init.invalid_source_directory",

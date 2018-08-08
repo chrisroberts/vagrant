@@ -287,6 +287,25 @@ module VagrantPlugins
         def read_state
         end
 
+        # Returns a list of the storage controllers for a VM.
+        #
+        # Each storage controller is represented as a Hash with the following details:
+        #
+        # {
+        #   :index           => Integer,    # index of the storage controller
+        #   :name            => String,     # name of the stroage controller
+        #   :ports           => Integer,    # number of ports enabled
+        #   :max_ports       => Integer,    # maximum number of ports for this type
+        #   :type            => String,     # type of storage controller
+        #   :instance        => Integer,    # instance of this controller type
+        #   :attachments     => Array<Hash> # Active attachments
+        # }
+        #
+        # @return [Array<Hash>] See comment above for details
+        def read_storage_controllers
+          raise NotImplementedError
+        end
+
         # Returns a list of all forwarded ports in use by active
         # virtual machines.
         #

@@ -588,6 +588,39 @@ module VagrantPlugins
           nil
         end
 
+        def read_storage_controllers
+          output = execute("showvminfo", @uuid, "--machinereadable", retryable: true)
+          collected = {}
+          mapper = {"maxportcount" => "max_port", "portcount" => "ports"}
+          # Collect information on current storage controllers
+          output.each_line do |line|
+            key, value = line.strip.split("=", 2)
+            next if !key.start_with?("storagecontroller")
+            info = key.match(/^storagecontroller(?<name>[^\d]+)(?<index>\d+)$/)
+            next if info.nil?
+            idx = info[:index].to_i
+            i_key = mapper.fetch(info[:name], info[:name])
+            if i_key == "instance"
+              value = value.to_i
+            end
+            collected[idx] ||= Vagrant::Util::HashWithIndifferentAccess.new(index: idx, attachments: {})
+            collected[idx][i_key] = value
+          end
+          result = collected.values.sort_by{|i| i[:index] }
+          # Include any attachments
+          result.each do |controller|
+            matches = output.to_enum(:scan,
+              /^"#{Regexp.escape(controller[:name])}-#{controller[:instance]}-(?<port>\d+)"="(?<value>[^"]+)"/).map {
+              Regexp.last_match
+            }
+            matches.each do |attach|
+              next if attach[:value] == "none"
+              controller[:attachments][attach[:port].to_i] = attach[:value]
+            end
+          end
+          result
+        end
+
         def read_used_ports
           used_ports = Hash.new{|hash, key| hash[key] = Set.new}
           execute("list", "vms", retryable: true).split("\n").each do |line|

@@ -74,6 +74,7 @@ module VagrantPlugins
         @__compiled_provider_configs   = {}
         @__defined_vm_keys             = []
         @__defined_vms                 = {}
+        @__drives                      = {}
         @__finalized                   = false
         @__networks                    = {}
         @__providers                   = {}
@@ -92,8 +93,10 @@ module VagrantPlugins
       def merge(other)
         super.tap do |result|
           other_networks = other.instance_variable_get(:@__networks)
-
           result.instance_variable_set(:@__networks, @__networks.merge(other_networks))
+
+          other_drives = other.instance_variable_get(:@__drives)
+          result.instance_variable_set(:@__drives, @__drives.merge(other_drives))
 
           # Merge defined VMs by first merging the defined VM keys,
           # preserving the order in which they were defined.
@@ -301,6 +304,20 @@ module VagrantPlugins
             @__provider_overrides[name] << block.curry[Vagrant::Config::V2::DummyConfig.new]
           end
         end
+      end
+
+      # Add a new drive to the guest
+      #
+      # @param [Symbol, String] type The type of drive (disk, dvd, floppy)
+      # @param [Hash] options Options for the drive
+      # @option options [String] :path Path to file or directory
+      # @option options [String] :size Size of drive for disk type. Format of: '20GB'
+      def drive(type, **options)
+        data = Vagrant::Util::HashWithIndifferentAccess.new(options).merge(type: type.to_s)
+        if !data[:id]
+          data[:id] = SecureRandom.uuid
+        end
+        @__drives[data[:id]] = data
       end
 
       def provision(name, **options, &block)
@@ -579,6 +596,11 @@ module VagrantPlugins
         @__synced_folders
       end
 
+      # This returns the list of drives
+      def drives
+        @__drives.values
+      end
+
       def validate(machine)
         errors = _detected_errors
 
@@ -782,6 +804,28 @@ module VagrantPlugins
                   path: fs[:hostpath])
               end
             end
+          end
+        end
+
+        # Validate additional drives if defined
+        @__drives.values.each do |drive|
+          case drive[:type]
+          when "disk"
+            if !drive.key?(:size)
+              errors["vm"] << I18n.t("vagrant.config.vm.drive_missing_size")
+            elsif drive[:size].to_s !~ /^\d+[GM]B$/
+              errors["vm"] << I18n.t("vagrant.config.vm.drive_invalid_size",
+                size: drive[:size].to_s)
+            end
+          when "dvd", "floppy"
+            if !drive.key?(:path)
+              errors["vm"] << I18n.t("vagrant.config.vm.drive_missing_path")
+            elsif !File.exist?(drive[:path])
+              errors["vm"] << I18n.t("vagrant.config.vm.drive_invalid_path")
+            end
+          else
+            errors["vm"] << I18n.t("vagrant.config.vm.drive_invalid_type",
+              type: drive[:type].to_s)
           end
         end
 
