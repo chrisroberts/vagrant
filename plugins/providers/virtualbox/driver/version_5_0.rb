@@ -589,36 +589,47 @@ module VagrantPlugins
         end
 
         def read_storage_controllers
+          controllers = []
+          mediums = read_storage_mediums
           output = execute("showvminfo", @uuid, "--machinereadable", retryable: true)
-          collected = {}
-          mapper = {"maxportcount" => "max_port", "portcount" => "ports"}
-          # Collect information on current storage controllers
-          output.each_line do |line|
-            key, value = line.strip.split("=", 2)
-            next if !key.start_with?("storagecontroller")
-            info = key.match(/^storagecontroller(?<name>[^\d]+)(?<index>\d+)$/)
-            next if info.nil?
-            idx = info[:index].to_i
-            i_key = mapper.fetch(info[:name], info[:name])
-            if i_key == "instance"
-              value = value.to_i
+          ctrls = output.to_enum(:scan, /^storagecontroller(?<key>.+?)(?<idx>\d+)="?(?<value>.+?)"?$/).map{
+            Regexp.last_match.named_captures
+          }.group_by{ |item| item["idx"].to_i }
+          ctrls.each do |idx, items|
+            controller = Vagrant::Util::HashWithIndifferentAccess.new(index: idx.to_i, attachments: [])
+            items.each do |item|
+              controller[item["name"]] = item["value"]
             end
-            collected[idx] ||= Vagrant::Util::HashWithIndifferentAccess.new(index: idx, attachments: {})
-            collected[idx][i_key] = value
-          end
-          result = collected.values.sort_by{|i| i[:index] }
-          # Include any attachments
-          result.each do |controller|
-            matches = output.to_enum(:scan,
-              /^"#{Regexp.escape(controller[:name])}-#{controller[:instance]}-(?<port>\d+)"="(?<value>[^"]+)"/).map {
-              Regexp.last_match
-            }
-            matches.each do |attach|
-              next if attach[:value] == "none"
-              controller[:attachments][attach[:port].to_i] = attach[:value]
+            next if !controller[:name]
+            output.scan(/^"#{controller[:name]}-ImageUUID-\d+-\d+"="(.+?)"$/).flatten.each do |a_uuid|
+              if mediums[a_uuid]
+                controller[:attachments] << mediums[a_uuid]
+              end
             end
           end
-          result
+          controllers
+        end
+
+        def read_storage_mediums
+          mediums = Vagrant::Util::HashWithIndifferentAccess.new
+          [[:dvd, :dvds], [:hdd, :hdds], [:floppy, :floppies]].each do |type, list_type|
+            uuid = nil
+            execute("list #{list_type} --long").each_line do |line|
+              key, value = line.strip.split(":", 2).map(&:strip)
+              key = key.downcase.tr(" -", "_").to_sym
+              if key == :uuid
+                uuid = value
+                mediums[uuid] = Vagrant::Util::HashWithIndifferentAccess.new(type: type)
+              end
+              next if key == :uuid || uuid.nil?
+              mediums[uuid][key] = value
+            end
+          end
+          mediums
+        end
+
+        def read_storage_controller_attachment
+
         end
 
         def read_used_ports

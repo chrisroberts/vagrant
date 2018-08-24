@@ -9,7 +9,11 @@ module VagrantPlugins
         def call(env)
           @env = env
 
+          all_controllers = env[:machine].provider.driver.read_storage_controllers
+          controllers = all_controllers.find_all{|c| c[:name].start_with?("Vagrant") }
+          current_attachments = ""
           env[:machine].config.vm.drives.each do |drive|
+            next if drive[:disabled]
 
           end
 

@@ -65,7 +65,7 @@ module VagrantPlugins
           b.use SetName
           b.use ClearForwardedPorts
           b.use Provision
-          b.use Drives
+          b.use Drive
           b.use EnvSet, port_collision_repair: true
           b.use PrepareForwardedPortCollisionParams
           b.use HandleForwardedPortCollisions
