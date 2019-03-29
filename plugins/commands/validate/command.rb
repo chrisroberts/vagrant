@@ -33,8 +33,11 @@ module VagrantPlugins
           tmp_data_dir = mockup_providers!
         end
 
+        require 'pry'
+
         # Validate the configuration of all machines
         with_target_vms() do |machine|
+          binding.pry
           machine.action_raw(:config_validate, Vagrant::Action::Builtin::ConfigValidate, action_env)
         end
 

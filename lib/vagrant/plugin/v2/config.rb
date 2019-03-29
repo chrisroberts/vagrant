@@ -64,6 +64,11 @@ module Vagrant
           other_invalid = other.instance_variable_get(:"@__invalid_methods") || Set.new
           result.instance_variable_set(:"@__invalid_methods", this_invalid + other_invalid)
 
+          # Persist stored missing
+          this_missing = @__stored_missing || {}
+          other_missing = other.instance_variable_get(:"@__stored_missing") || {}
+          result.instance_variable_set(:"@__stored_missing", Vagrant::Util::DeepMerge.deep_merge(this_missing, other_missing))
+
           result
         end
 
@@ -73,13 +78,27 @@ module Vagrant
           return super if @__finalized
 
           name = name.to_s
-          name = name[0...-1] if name.end_with?("=")
+          result = nil
+          @__stored_missing ||= {}
+          if name.end_with?("=")
+            name = name[0...-1]
+            @__stored_missing[name] = args.first
+            result = args.first
+          end
 
           @__invalid_methods ||= Set.new
           @__invalid_methods.add(name)
 
-          # Return the dummy object so that anything else works
-          ::Vagrant::Config::V2::DummyConfig.new
+          return result if result
+
+          if !@__stored_missing[name]
+            @__stored_missing[name] = ::Vagrant::Config::V2::DummyConfig.new
+          end
+
+          if block_given?
+            yield @__stored_missing[name]
+          end
+          @__stored_missing[name]
         end
 
         # Allows setting options from a hash. By default this simply calls
