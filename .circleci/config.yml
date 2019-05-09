@@ -1,12 +1,23 @@
 version: 2
 jobs:
-  test:
+  build:
     docker:
-      - image: circleci/golang:1.12.1
+      - image: circleci/ruby:2.4.6
     steps:
+      - checkout
       - run: |
-          SLACK_MESSAGE="testing vagrant"
+          set +e
+          output=$(gem build *.gemspec)
+          result=$?
+          echo $output
+          if [ $result -eq 0 ]; then
+            SLACK_MESSAGE="Vagrant RubyGem built!"
+          else
+            SLACK_MESSAGE="Failed to build Vagrant RubyGem!"
+            SLACK_STATE=$SLACK_ERROR
+          fi
           eval $SLACK_EXECUTE
+          exit $result
   build-website:
     # setting the working_directory along with the checkout path allows us to not have
     # to cd into the website/ directory for commands
