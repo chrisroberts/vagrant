@@ -1,5 +1,12 @@
 version: 2
 jobs:
+  test:
+    docker:
+      - image: circleci/golang:1.12.1
+    steps:
+      - run: |
+          SLACK_MESSAGE="testing vagrant"
+          eval $SLACK_EXECUTE
   build-website:
     # setting the working_directory along with the checkout path allows us to not have
     # to cd into the website/ directory for commands
@@ -33,6 +40,10 @@ jobs:
 
 workflows:
   version: 2
+  test:
+    jobs:
+      - test:
+          context: vagrant
   website:
     jobs:
       - build-website:
