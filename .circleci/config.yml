@@ -73,6 +73,9 @@ workflows:
     jobs:
       - build:
           context: vagrant-test
+          filters:
+            branches:
+              ignore: /.*/
       - release:
           context: vagrant-test
           filters:
