@@ -24,12 +24,11 @@ jobs:
     steps:
       - run: |
           set +e
-          echo "SHA: ${CIRCLE_SHA1}"
           echo "TAG: ${CIRCLE_TAG}"
-          curl -f -X POST -u "hashicorp-ci:${HASHIBOT_TOKEN}" -H "Content-Type: application/json" -d "{\"tag_name\":\"${CIRCLE_TAG}\",\"target_commitish\":\"${CIRCLE_SHA1}\",\"name\":\"${CIRCLE_TAG}\"}" "https://api.github.com/repos/chrisroberts/vagrant-installers/releases"
+          curl -f -X POST -u "${HASHIBOT_USERNAME}:${HASHIBOT_TOKEN}" -H "Content-Type: application/json" -d "{\"tag_name\":\"${CIRCLE_TAG}\",\"target_commitish\":\"master\",\"name\":\"${CIRCLE_TAG}\"}" "https://api.github.com/repos/chrisroberts/vagrant-installers/releases"
           result=$?
           if [ $result -eq 0 ]; then
-            SLACK_MESSAGE="Created new release on installers"
+            SLACK_MESSAGE="Created new release on installers for tag: ${CIRCLE_TAG}"
           else
             SLACK_MESSAGE="Failed to create release on installers"
             SLACK_STATE="${SLACK_ERROR}"
