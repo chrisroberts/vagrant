@@ -51,7 +51,7 @@ jobs:
 
 workflows:
   version: 2
-  test:
+  build:
     jobs:
       - test:
           context: vagrant-test
