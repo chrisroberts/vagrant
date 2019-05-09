@@ -23,7 +23,7 @@ jobs:
       - image: circleci/ruby:2.4.6
     steps:
       - run: |
-          curl -f -X POST -H "Content-Type: application/json" -d "{\"tag_name\":\"${CIRCLE_TAG}\",\"target_commitish\":\"${CIRCLE_SHA1}\",\"name\":\"${CIRCLE_TAG}\"}" "https://github.com/repos/${CIRCLE_PROJECT_USERNAME}/vagrant-installers/releases
+          curl -f -X POST -H "Content-Type: application/json" -d "{\"tag_name\":\"${CIRCLE_TAG}\",\"target_commitish\":\"${CIRCLE_SHA1}\",\"name\":\"${CIRCLE_TAG}\"}" "https://github.com/repos/${CIRCLE_PROJECT_USERNAME}/vagrant-installers/releases"
           result=$?
           if [ $result -eq 0 ]; then
             SLACK_MESSAGE="Created new release on installers"
@@ -74,7 +74,7 @@ workflows:
           context: vagrant-test
           filters:
             tags:
-              only: /*/
+              only: /.*/
   website:
     jobs:
       - build-website:
