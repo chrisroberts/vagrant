@@ -1,4 +1,4 @@
-# Vagrant
+ # Vagrant
 
 * Website: [https://www.vagrantup.com/](https://www.vagrantup.com/)
 * Source: [https://github.com/hashicorp/vagrant](https://github.com/hashicorp/vagrant)
