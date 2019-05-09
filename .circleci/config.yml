@@ -76,6 +76,8 @@ workflows:
       - release:
           context: vagrant-test
           filters:
+            branches:
+              ignore: /.*/
             tags:
               only: /.*/
   website:
