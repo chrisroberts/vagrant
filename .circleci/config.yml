@@ -43,7 +43,7 @@ workflows:
   test:
     jobs:
       - test:
-          context: vagrant
+          context: vagrant-test
   website:
     jobs:
       - build-website:
