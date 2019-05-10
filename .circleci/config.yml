@@ -47,7 +47,7 @@ jobs:
     docker:
       - image: circleci/ruby:2.4.6
     environment:
-      <<:*ENVIRONMENT
+      <<: *ENVIRONMENT
     steps:
       - run: |
           set +e
