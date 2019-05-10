@@ -1,4 +1,8 @@
 version: 2
+reference:
+  environment: &ENVIRONMENT
+    SLACK_USERNAME: Vagrant
+    SLACK_TITLE: Vagrant CI
 jobs:
   build:
     docker:
@@ -105,6 +109,8 @@ workflows:
               only: /.*/
       - release_store:
           context: vagrant-test
+          requires:
+            - release_build
           filters:
             branches:
               ignore: /.*/
@@ -112,6 +118,8 @@ workflows:
               only: /.*/
       - release:
           context: vagrant-test
+          requires:
+            - release_store
           filters:
             branches:
               ignore: /.*/
