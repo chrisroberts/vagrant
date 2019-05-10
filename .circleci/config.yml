@@ -10,6 +10,8 @@ jobs:
           output=$(gem build *.gemspec)
           result=$?
           echo $output
+          SLACK_USERNAME=Vagrant
+          SLACK_TITLE=Vagrant Builder
           if [ $result -eq 0 ]; then
             SLACK_MESSAGE="Vagrant RubyGem built!"
           else
@@ -73,8 +75,6 @@ workflows:
       - build:
           context: vagrant-test
           filters:
-            branches:
-              ignore: /.*/
       - release:
           context: vagrant-test
           filters:
