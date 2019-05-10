@@ -21,6 +21,24 @@ jobs:
           fi
           eval $SLACK_EXECUTE
           exit $result
+  release_build:
+    docker:
+      - image: circleci/ruby:2.4.6
+    steps:
+      - checkout
+      - run: gem build *.gemspec
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ./*.gem
+  release_store:
+    docker:
+      - image: circleci/python:stretch
+    steps:
+      - attach_workspace:
+          at: .
+      - run: sudo pip install awscli
+      - run: aws s3 cp ./vagrant-*.gem "${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/"
   release:
     docker:
       - image: circleci/ruby:2.4.6
@@ -75,6 +93,23 @@ workflows:
     jobs:
       - build:
           context: vagrant-test
+          filters:
+            branches:
+              ignore: /.*/
+      - release_build:
+          context: vagrant-test
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /.*/
+      - release_store:
+          context: vagrant-test
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /.*/
       - release:
           context: vagrant-test
           filters:
