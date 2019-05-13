@@ -3,6 +3,7 @@ reference:
   environment: &ENVIRONMENT
     SLACK_USERNAME: Vagrant
     SLACK_TITLE: Vagrant CI
+    SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
 jobs:
   build:
     docker:
@@ -57,7 +58,7 @@ jobs:
           if [ $result -eq 0 ]; then
             SLACK_MESSAGE="Created new release on installers for tag: ${CIRCLE_TAG}"
           else
-            SLACK_MESSAGE="Failed to create release on installers\n\n```${output}```"
+            SLACK_MESSAGE="Failed to create release on installers\n\n\`\`\`${output}\`\`\`"
             SLACK_STATE="${SLACK_ERROR}"
           fi
           eval $SLACK_EXECUTE
