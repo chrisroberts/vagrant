@@ -5,7 +5,6 @@ reference:
     SLACK_TITLE: Vagrant CI
     SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
     RELEASE_TARGET_REPONAME: vagrant-installers
-
   images:
     ruby23: &ruby23
       docker:
@@ -102,7 +101,7 @@ jobs:
           export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
           if [ "${CIRCLE_TAG}" = "" ]; then
             version="v${gem_version}+$(git rev-parse --short "${CIRCLE_SHA1}")"
-            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -replace ${version} ${gem} > .output 2>&1
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -delete -replace ${version} ${gem} > .output 2>&1
           else
             version="${CIRCLE_TAG}"
             ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
