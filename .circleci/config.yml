@@ -97,7 +97,7 @@ jobs:
           at: .
       - run: |
           gem=(vagrant-*.gem)
-          gem_version="${gem_version##vagrant-}"
+          gem_version="${gem##vagrant-}"
           gem_version="${gem_version%%.gem}"
           export GITHUB_TOKEN="${HASHIBOT_TOKEN}"
           if [ "${CIRCLE_TAG}" = "" ]; then
