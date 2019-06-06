@@ -1,5 +1,11 @@
 version: 2
 reference:
+  environment: &ENVIRONMENT
+    SLACK_USERNAME: Vagrant
+    SLACK_TITLE: Vagrant CI
+    SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
+    RELEASE_TARGET_REPONAME: vagrant-installers
+
   images:
     ruby23: &ruby23
       docker:
@@ -21,11 +27,6 @@ reference:
           auth:
             username: $BUILDER_USERNAME
             password: $BUILDER_PASSWORD
-  environment: &ENVIRONMENT
-    SLACK_USERNAME: Vagrant
-    SLACK_TITLE: Vagrant CI
-    SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
-    RELEASE_TARGET_REPONAME: vagrant-installers
   workflows:
     public: &PUBLIC_WORKFLOW
       filters:
@@ -73,7 +74,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - *.gem
+            - ./*.gem
   store:
     <<: *builder
     steps:
