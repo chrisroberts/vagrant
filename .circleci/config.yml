@@ -47,9 +47,9 @@ reference:
         name: Failure handler
         command: |
           if [ -f .output ]; then
-            slack -m "Vagrant job has failed: ${CIRCLE_JOB}" -s error -f .output -T 5
+            slack -m "Vagrant job has failed: *${CIRCLE_JOB}*" -s error -f .output -T 5
           else
-            slack -m "Vagrant job has failed: ${CIRCLE_JOB}" -s error
+            slack -m "Vagrant job has failed: *${CIRCLE_JOB}*" -s error
           fi
         when: on_fail
     unit_tests: &unit_tests
