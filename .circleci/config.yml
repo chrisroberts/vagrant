@@ -33,7 +33,7 @@ reference:
         branches:
           only: /^pull\/.*/
     private_build: &PRIVATE_WORKFLOW_BUILD
-      context: vagrant
+      context: vagrant-test
       filters:
         branches:
           only:
