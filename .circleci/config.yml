@@ -1,5 +1,124 @@
 version: 2
+reference:
+  images:
+    ruby23: &ruby23
+      docker:
+        - image: circleci/ruby:2.3
+    ruby24: &ruby24
+      docker:
+        - image: circleci/ruby:2.4
+    ruby25: &ruby25
+      docker:
+        - image: circleci/ruby:2.5
+    ruby26: &ruby26
+      docker:
+        - image: circleci/ruby:2.6
+    builder: &builder
+      environment:
+        <<: *ENVIRONMENT
+      docker:
+        - image: $BUILDER_IMAGE
+          auth:
+            username: $BUILDER_USERNAME
+            password: $BUILDER_PASSWORD
+  environment: &ENVIRONMENT
+    SLACK_USERNAME: Vagrant
+    SLACK_TITLE: Vagrant CI
+    SLACK_ICON: https://avatars.slack-edge.com/2017-10-17/257000837696_070f98107cdacc0486f6_36.png
+    RELEASE_TARGET_REPONAME: vagrant-installers
+  workflows:
+    public: &PUBLIC_WORKFLOW
+      filters:
+        branches:
+          only: /^pull\/.*/
+    private_build: &PRIVATE_WORKFLOW_BUILD
+      context: vagrant
+      filters:
+        branches:
+          only:
+            - master
+            - /^build-.*/
+        tags:
+          only: /.*/
+  jobs:
+    private_failure: &PRIVATE_FAILURE
+      run:
+        name: Failure handler
+        command: |
+          if [ -f .output ]; then
+            slack -m "Vagrant job has failed: ${CIRCLE_JOB}" -s error -f .output -T 5
+          else
+            slack -m "Vagrant job has failed: ${CIRCLE_JOB}" -s error
+          fi
+        when: on_fail
+    unit_tests: &unit_tests
+      steps:
+        - checkout
+        - restore_cache:
+            key: static-site-gems-v1-{{ checksum "Gemfile.lock" }}
+        - run:
+            command: bundle check || bundle install --path vendor/bundle
+        - save_cache:
+            key: static-site-gems-v1-{{ checksum "Gemfile.lock" }}
+            paths:
+              - ./vendor/bundle
+        - run: bundle exec rake test:unit
 jobs:
+  build:
+    <<: *builder
+    steps:
+      - checkout
+      - run: gem build vagrant.gemspec
+      - *PRIVATE_FAILURE
+      - persist_to_workspace:
+          root: .
+          paths:
+            - *.gem
+  store:
+    <<: *builder
+    steps:
+      - attach_workspace:
+          at: .
+      - run: |
+          if [[ "${CIRCLE_BRANCH}" = "build-"* ]]; then
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_BRANCH##build-}/"
+          else
+            s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/"
+          fi
+          s3_dst="${ASSETS_PRIVATE_BUCKET}/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_TAG}/"
+          aws s3 cp ./vagrant-*.gem "${s3_dst}" > .output 2>&1
+      - *PRIVATE_FAILURE
+  release:
+    <<: *builder
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run: |
+          gem=(vagrant-*.gem)
+          gem_version="${gem_version##vagrant-}"
+          gem_version="${gem_version%%.gem}"
+          if [ "${CIRCLE_TAG}" = "" ]; then
+            version="v${gem_version}+$(git rev-parse --short "${CIRCLE_SHA1}")"
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -replace ${version} ${gem} > .output 2>&1
+          else
+            version="${CIRCLE_TAG}"
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
+          fi
+          slack -m "New Vagrant installers release triggered: *${version}*"
+      - *PRIVATE_FAILURE
+  test_ruby23:
+    <<: *ruby23
+    <<: *unit_tests
+  test_ruby24:
+    <<: *ruby24
+    <<: *unit_tests
+  test_ruby25:
+    <<: *ruby25
+    <<: *unit_tests
+  test_ruby26:
+    <<: *ruby26
+    <<: *unit_tests
   build-website:
     # setting the working_directory along with the checkout path allows us to not have
     # to cd into the website/ directory for commands
@@ -9,30 +128,42 @@ jobs:
     steps:
       - checkout:
           path: ~/project
-
-      # restores gem cache
       - restore_cache:
           key: static-site-gems-v1-{{ checksum "Gemfile.lock" }}
-
       - run:
           command: bundle check || bundle install --path vendor/bundle
-
-      # saves gem cache if we have changed the Gemfile
       - save_cache:
           key: static-site-gems-v1-{{ checksum "Gemfile.lock" }}
           paths:
             - ~/project/website/vendor/bundle
-
-      # middleman build
       - run:
           command: bundle exec middleman build
-
-      # website deploy
       - run:
           command: ./scripts/deploy.sh
-
 workflows:
   version: 2
+  build:
+    jobs:
+      - build:
+          <<: *PRIVATE_WORKFLOW_BUILD
+      - store:
+          <<: *PRIVATE_WORKFLOW_BUILD
+          requires:
+            - build
+      - release:
+          <<: *PRIVATE_WORKFLOW_BUILD
+          requires:
+            - build
+  test:
+    jobs:
+      - test_ruby23:
+          <<: *PUBLIC_WORKFLOW
+      - test_ruby24:
+          <<: *PUBLIC_WORKFLOW
+      - test_ruby25:
+          <<: *PUBLIC_WORKFLOW
+      - test_ruby26:
+          <<: *PUBLIC_WORKFLOW
   website:
     jobs:
       - build-website:
