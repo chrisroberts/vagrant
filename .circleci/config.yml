@@ -95,6 +95,7 @@ jobs:
       - attach_workspace:
           at: .
       - run: |
+          set +e
           gem=(vagrant-*.gem)
           gem_version="${gem##vagrant-}"
           gem_version="${gem_version%%.gem}"
