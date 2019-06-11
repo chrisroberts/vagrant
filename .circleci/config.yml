@@ -105,7 +105,7 @@ jobs:
             ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -prerelease -delete -replace ${version} ${gem} > .output 2>&1
           else
             version="${CIRCLE_TAG}"
-            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -replace ${version} ${gem} > .output 2>&1
+            ghr -u ${CIRCLE_PROJECT_USERNAME} -r ${RELEASE_TARGET_REPONAME} -c master -delete -replace ${version} ${gem} > .output 2>&1
           fi
           slack -m "New Vagrant installers release triggered: *${version}*"
       - *PRIVATE_FAILURE
