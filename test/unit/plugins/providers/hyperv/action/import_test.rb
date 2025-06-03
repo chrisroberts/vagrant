@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../../base"
 
 require Vagrant.source_root.join("plugins/providers/hyperv/action/import")
@@ -12,7 +15,10 @@ describe VagrantPlugins::HyperV::Action::Import do
   let(:provider_config){
     double("provider_config",
       linked_clone: false,
-      vmname: "VMNAME"
+      vmname: "VMNAME",
+      cpus: nil,
+      memory: nil,
+      maxmemory: nil,
     )
   }
   let(:box){ double("box", directory: box_directory) }
@@ -93,6 +99,17 @@ describe VagrantPlugins::HyperV::Action::Import do
     it "should set the machine ID after import" do
       expect(machine).to receive(:id=).with("VMID")
       subject.call(env)
+    end
+
+    context "VM ID result is Array" do
+      before do
+        expect(driver).to receive(:import).and_return("id" => "VMID")
+      end
+
+      it "should properly set the machine ID" do
+        expect(machine).to receive(:id=).with("VMID")
+        subject.call(env)
+      end
     end
 
     context "with no vmcx support" do

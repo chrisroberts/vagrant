@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../base"
 
 require Vagrant.source_root.join("plugins/providers/docker/driver")
@@ -204,6 +207,16 @@ describe VagrantPlugins::DockerProvider::Driver do
       end
     end
 
+    context "using buildkit with containerd backend output" do
+      let(:stdout) { "exporting manifest list sha256:1a2b3c4d done" }
+
+      it "builds a container with buildkit docker (containerd)" do
+        container_id = subject.build("/tmp/fakedir")
+
+        expect(container_id).to eq(cid)
+      end
+    end
+
     context "using podman emulating docker CLI" do
       let(:stdout) { "1a2b3c4d5e6f7g8h9i10j11k12l13m14n16o17p18q19r20s21t22u23v24w25x2" }
 
@@ -213,6 +226,17 @@ describe VagrantPlugins::DockerProvider::Driver do
         container_id = subject.build("/tmp/fakedir")
 
         expect(container_id).to eq(cid)
+      end
+
+      context "if output contains extra trailing information" do
+        let(:stdout) { "1a2b3c4d5e6f7g8h9i10j11k12l13m14n16o17p18q19r20s21t22u23v24w25x2\nextra content\n" }
+        it "builds a container with podman emulating docker CLI" do
+          allow(subject).to receive(:podman?).and_return(true)
+
+          container_id = subject.build("/tmp/fakedir")
+
+          expect(container_id).to eq(cid)
+        end
       end
     end
   end
@@ -337,6 +361,34 @@ describe VagrantPlugins::DockerProvider::Driver do
     end
   end
 
+  describe '#image?' do
+    let(:result) { subject.image?(cid) }
+
+    it 'performs the check on all images list' do
+      subject.image?(cid)
+      expect(cmd_executed).to match(/docker images \-q \--no-trunc/)
+    end
+
+    context 'when image id exists' do
+      let(:stdout) { "foo\n#{cid}\nbar" }
+
+      it { expect(result).to be_truthy }
+    end
+
+    context 'when sha265 image id exists' do
+      let(:stdout) { "sha256:foo\nsha256:#{cid}\nsha256:bar" }
+
+      it { expect(result).to be_truthy }
+    end
+
+    context 'when image does not exist' do
+      let(:stdout) { "foo\n#{cid}extra\nbar" }
+
+      it { expect(result).to be_falsey }
+    end
+  end
+
+
   describe '#pull' do
     it 'should pull images' do
       subject.pull('foo')
@@ -346,19 +398,33 @@ describe VagrantPlugins::DockerProvider::Driver do
 
   describe '#read_used_ports' do
     let(:all_containers) { ["container1\ncontainer2"] }
-    let(:container_info) { {"Name"=>"/container", "HostConfig"=>{"PortBindings"=>{}}} }
+    let(:container_info) { {"Name"=>"/container", "State"=>{"Running"=>true}, "HostConfig"=>{"PortBindings"=>{}}} }
     let(:empty_used_ports) { {} }
 
     context "with existing port forwards" do
-      let(:container_info) { {"Name"=>"/container", "HostConfig"=>{"PortBindings"=>{"22/tcp"=>[{"HostIp"=>"127.0.0.1","HostPort"=>"2222"}] }}} }
+      let(:container_info) { {"Name"=>"/container","State"=>{"Running"=>true}, "HostConfig"=>{"PortBindings"=>{"22/tcp"=>[{"HostIp"=>"127.0.0.1","HostPort"=>"2222"}] }}} }
       let(:used_ports_set) { {"2222"=>Set["127.0.0.1"]} }
 
-      it 'should read all port bindings and return a hash of sets' do
-        allow(subject).to receive(:all_containers).and_return(all_containers)
-        allow(subject).to receive(:inspect_container).and_return(container_info)
+      context "with active containers" do
+        it 'should read all port bindings and return a hash of sets' do
+          allow(subject).to receive(:all_containers).and_return(all_containers)
+          allow(subject).to receive(:inspect_container).and_return(container_info)
 
-        used_ports = subject.read_used_ports
-        expect(used_ports).to eq(used_ports_set)
+          used_ports = subject.read_used_ports
+          expect(used_ports).to eq(used_ports_set)
+        end
+      end
+
+      context "with inactive containers" do
+        let(:container_info) { {"Name"=>"/container", "State"=>{"Running"=>false}, "HostConfig"=>{"PortBindings"=>{"22/tcp"=>[{"HostIp"=>"127.0.0.1","HostPort"=>"2222"}] }}} }
+
+        it 'returns empty' do
+          allow(subject).to receive(:all_containers).and_return(all_containers)
+          allow(subject).to receive(:inspect_container).and_return(container_info)
+
+          used_ports = subject.read_used_ports
+          expect(used_ports).to eq(empty_used_ports)
+        end
       end
     end
 
@@ -513,6 +579,15 @@ describe VagrantPlugins::DockerProvider::Driver do
         subject.rmi(id)
       end
     end
+
+    context 'image is in use by a container' do
+      before { allow(subject).to receive(:execute).and_raise("image is in use by a container") }
+
+      it 'does not remove the image' do
+        expect(subject.rmi(id)).to eq(false)
+        subject.rmi(id)
+      end
+    end
   end
 
   describe '#inspect_container' do
@@ -538,11 +613,65 @@ describe VagrantPlugins::DockerProvider::Driver do
   end
 
   describe '#docker_bridge_ip' do
-    let(:stdout) { " inet 123.456.789.012/16 " }
+    context 'from docker network command' do 
+    let(:network_struct) {
+    [{
+        "Name": "bridge",
+        "Id": "ae74f6cc18bbcde86326937797070b814cc71bfc4a6d8e3e8cf3b2cc5c7f4a7d",
+        "Created": "2019-03-20T14:10:06.313314662-07:00",
+        "Scope": "local",
+        "Driver": "bridge",
+        "EnableIPv6": false,
+        "IPAM": {
+            "Driver": "default",
+            "Options": nil,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        "Internal": false,
+        "Attachable": false,
+        "Ingress": false,
+        "ConfigFrom": {
+            "Network": ""
+        },
+        "ConfigOnly": false,
+        "Containers": {
+            "a1ee9b12bcea8268495b1f43e8d1285df1925b7174a695075f6140adb9415d87": {
+                "Name": "vagrant-sandbox_docker-1_1553116237",
+                "EndpointID": "fc1b0ed6e4f700cf88bb26a98a0722655191542e90df3e3492461f4d1f3c0cae",
+                "MacAddress": "02:42:ac:11:00:02",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+            }
+        },
+        "Options": {
+            "com.docker.network.bridge.default_bridge": "true",
+            "com.docker.network.bridge.enable_icc": "true",
+            "com.docker.network.bridge.enable_ip_masquerade": "true",
+            "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+            "com.docker.network.bridge.name": "docker0",
+            "com.docker.network.driver.mtu": "1500"
+        },
+        "Labels": {}
+    }].to_json
+    }
+      it "returns the bridge gateway ip" do
+        allow(subject).to receive(:inspect_network).and_return(JSON.load(network_struct))
+        expect(subject.docker_bridge_ip).to eq('172.17.0.1')
+      end
+    end
 
-    it 'returns an array of all known containers' do
-      expect(subject.docker_bridge_ip).to eq('123.456.789.012')
-      expect(cmd_executed).to eq("/sbin/ip -4 addr show scope global docker0")
+    context 'when falling back to ip' do
+      let(:stdout) { " inet 123.456.789.012/16 " }
+
+      it 'returns the bridge ip' do
+        expect(subject.docker_bridge_ip).to eq('123.456.789.012')
+        expect(cmd_executed).to eq("ip -4 addr show scope global docker0")
+      end
     end
   end
 
@@ -596,20 +725,111 @@ describe VagrantPlugins::DockerProvider::Driver do
     let(:subnet_string) { "172.20.0.0/16" }
     let(:network_names) { ["vagrant_network_172.20.0.0/16", "bridge", "null" ] }
 
-    it "returns network name if defined" do
+    before do
       allow(subject).to receive(:list_network_names).and_return(network_names)
       allow(subject).to receive(:inspect_network).and_return(JSON.load(docker_network_struct))
+    end
 
+    it "returns network name if defined" do
       network_name = subject.network_defined?(subnet_string)
       expect(network_name).to eq("vagrant_network_172.20.0.0/16")
     end
 
     it "returns nil name if not defined" do
-      allow(subject).to receive(:list_network_names).and_return(network_names)
-      allow(subject).to receive(:inspect_network).and_return(JSON.load(docker_network_struct))
-
       network_name = subject.network_defined?("120.20.0.0/24")
       expect(network_name).to eq(nil)
+    end
+
+    context "when config information is missing" do
+      let(:docker_network_struct) do
+        [
+          {
+            "Name": "bridge",
+            "Id": "ae74f6cc18bbcde86326937797070b814cc71bfc4a6d8e3e8cf3b2cc5c7f4a7d",
+            "Created": "2019-03-20T14:10:06.313314662-07:00",
+            "Scope": "local",
+            "Driver": "bridge",
+            "EnableIPv6": false,
+            "IPAM": {
+              "Driver": "default",
+              "Options": nil,
+            },
+            "Internal": false,
+            "Attachable": false,
+            "Ingress": false,
+            "ConfigFrom": {
+              "Network": ""
+            },
+            "ConfigOnly": false,
+            "Containers": {
+              "a1ee9b12bcea8268495b1f43e8d1285df1925b7174a695075f6140adb9415d87": {
+                "Name": "vagrant-sandbox_docker-1_1553116237",
+                "EndpointID": "fc1b0ed6e4f700cf88bb26a98a0722655191542e90df3e3492461f4d1f3c0cae",
+                "MacAddress": "02:42:ac:11:00:02",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+              },
+              "Options": {
+                "com.docker.network.bridge.default_bridge": "true",
+                "com.docker.network.bridge.enable_icc": "true",
+                "com.docker.network.bridge.enable_ip_masquerade": "true",
+                "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+                "com.docker.network.bridge.name": "docker0",
+                "com.docker.network.driver.mtu": "1500"
+              },
+              "Labels": {}
+            },
+          }
+        ].to_json
+      end
+
+      it "should not raise an error" do
+        expect { subject.network_defined?(subnet_string) }.not_to raise_error
+      end
+    end
+
+    context "when IPAM information is missing" do
+      let(:docker_network_struct) do
+        [
+          {
+            "Name": "bridge",
+            "Id": "ae74f6cc18bbcde86326937797070b814cc71bfc4a6d8e3e8cf3b2cc5c7f4a7d",
+            "Created": "2019-03-20T14:10:06.313314662-07:00",
+            "Scope": "local",
+            "Driver": "bridge",
+            "EnableIPv6": false,
+            "Internal": false,
+            "Attachable": false,
+            "Ingress": false,
+            "ConfigFrom": {
+              "Network": ""
+            },
+            "ConfigOnly": false,
+            "Containers": {
+              "a1ee9b12bcea8268495b1f43e8d1285df1925b7174a695075f6140adb9415d87": {
+                "Name": "vagrant-sandbox_docker-1_1553116237",
+                "EndpointID": "fc1b0ed6e4f700cf88bb26a98a0722655191542e90df3e3492461f4d1f3c0cae",
+                "MacAddress": "02:42:ac:11:00:02",
+                "IPv4Address": "172.17.0.2/16",
+                "IPv6Address": ""
+              },
+              "Options": {
+                "com.docker.network.bridge.default_bridge": "true",
+                "com.docker.network.bridge.enable_icc": "true",
+                "com.docker.network.bridge.enable_ip_masquerade": "true",
+                "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0",
+                "com.docker.network.bridge.name": "docker0",
+                "com.docker.network.driver.mtu": "1500"
+              },
+              "Labels": {}
+            },
+          }
+        ].to_json
+      end
+
+      it "should not raise an error" do
+        expect { subject.network_defined?(subnet_string) }.not_to raise_error
+      end
     end
   end
 

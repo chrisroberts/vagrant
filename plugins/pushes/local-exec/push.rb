@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "fileutils"
 require "tempfile"
 require "vagrant/util/safe_exec"
@@ -7,6 +10,8 @@ require_relative "errors"
 module VagrantPlugins
   module LocalExecPush
     class Push < Vagrant.plugin("2", :push)
+      @@logger = Log4r::Logger.new("vagrant::push::local_exec")
+
       def push
         if config.inline
           execute_inline!(config.inline, config.args)
@@ -63,11 +68,13 @@ module VagrantPlugins
 
       # Run the command as exec (unix).
       def execute_exec!(*cmd)
+        @@logger.debug("executing command via exec: #{cmd.inspect}")
         Vagrant::Util::SafeExec.exec(cmd[0], *cmd[1..-1])
       end
 
       # Run the command as a subprocess (windows).
       def execute_subprocess!(*cmd)
+        @@logger.debug("executing command via subprocess: #{cmd.inspect}")
         cmd = cmd.dup << { notify: [:stdout, :stderr] }
         result = Vagrant::Util::Subprocess.execute(*cmd) do |type, data|
           if type == :stdout

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "vagrant/util/subprocess"
 require "vagrant/util/which"
 
@@ -121,7 +124,14 @@ module VagrantPlugins
       # Execute the command, raising an exception if it fails.
       # @return [Vagrant::Util::Subprocess::Result]
       def execute!(*cmd)
-        result = Vagrant::Util::Subprocess.execute(*cmd)
+        subproccmd = cmd.dup << { notify: [:stdout, :stderr] }
+        result = Vagrant::Util::Subprocess.execute(*subproccmd) do |type, data|
+          if type == :stdout
+            @env.ui.info(data, new_line: false)
+          elsif type == :stderr
+            @env.ui.warn(data, new_line: false)
+          end
+        end
 
         if result.exit_code != 0
           raise Errors::CommandFailed,

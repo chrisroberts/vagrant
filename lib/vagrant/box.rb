@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'fileutils'
 require "tempfile"
 
@@ -16,6 +19,9 @@ module Vagrant
   class Box
     include Comparable
 
+    # The required fields in a boxes `metadata.json` file
+    REQUIRED_METADATA_FIELDS = ["provider"]
+
     # Number of seconds to wait between checks for box updates
     BOX_UPDATE_CHECK_INTERVAL = 3600
 
@@ -28,6 +34,11 @@ module Vagrant
     #
     # @return [Symbol]
     attr_reader :provider
+
+    # This is the architecture that this box is build for.
+    #
+    # @return [String]
+    attr_reader :architecture
 
     # The version of this box.
     #
@@ -57,13 +68,15 @@ module Vagrant
     # @param [Symbol] provider The provider that this box implements.
     # @param [Pathname] directory The directory where this box exists on
     #   disk.
+    # @param [String] architecture Architecture the box was built for
     # @param [String] metadata_url Metadata URL for box
     # @param [Hook] hook A hook to apply to the box downloader, for example, for authentication
-    def initialize(name, provider, version, directory, metadata_url: nil, hook: nil)
+    def initialize(name, provider, version, directory, architecture: nil, metadata_url: nil, hook: nil)
       @name      = name
       @version   = version
       @provider  = provider
       @directory = directory
+      @architecture = architecture
       @metadata_url = metadata_url
       @hook = hook
 
@@ -72,11 +85,24 @@ module Vagrant
 
       begin
         @metadata = JSON.parse(directory.join("metadata.json").read)
+        validate_metadata_json(@metadata)
       rescue JSON::ParserError
         raise Errors::BoxMetadataCorrupted, name: @name
       end
 
       @logger = Log4r::Logger.new("vagrant::box")
+    end
+
+    def validate_metadata_json(metadata)
+      metatdata_fields = metadata.keys
+      REQUIRED_METADATA_FIELDS.each do |field|
+        if !metatdata_fields.include?(field)
+          raise Errors::BoxMetadataMissingRequiredFields,
+            name: @name,
+            required_field: field,
+            all_fields: REQUIRED_METADATA_FIELDS.join(", ")
+        end
+      end
     end
 
     # This deletes the box. This is NOT undoable.
@@ -109,6 +135,7 @@ module Vagrant
         # If all the data matches, record it
         if box_data["name"] == self.name &&
           box_data["provider"] == self.provider.to_s &&
+          box_data["architecture"] == self.architecture &&
           box_data["version"] == self.version.to_s
           results << entry
         end
@@ -140,7 +167,7 @@ module Vagrant
         @hook.call(:authenticate_box_downloader, downloader: d)
       end
       d.download!
-      BoxMetadata.new(File.open(tf.path, "r"))
+      BoxMetadata.new(File.open(tf.path, "r"), url: url)
     rescue Errors::DownloaderError => e
       raise Errors::BoxMetadataDownloadError,
         message: e.extra_data[:message]
@@ -173,10 +200,11 @@ module Vagrant
       version ||= ""
       version += "> #{@version}"
       md      = self.load_metadata(download_options)
-      newer   = md.version(version, provider: @provider)
-      return nil if !newer
+      newer   = md.version(version, provider: @provider, architecture: @architecture)
+      
+      return nil if newer == nil || !md.compatible_version_update?(@version, newer.version, provider: @provider, architecture: @architecture)
 
-      [md, newer, newer.provider(@provider)]
+      [md, newer, newer.provider(@provider, @architecture)]
     end
 
     # Check if a box update check is allowed. Uses a file
@@ -220,13 +248,13 @@ module Vagrant
     end
 
     # Implemented for comparison with other boxes. Comparison is
-    # implemented by comparing names and providers.
+    # implemented by comparing names, providers, and architectures.
     def <=>(other)
       return super if !other.is_a?(self.class)
 
       # Comparison is done by composing the name and provider
-      "#{@name}-#{@version}-#{@provider}" <=>
-      "#{other.name}-#{other.version}-#{other.provider}"
+      "#{@name}-#{@version}-#{@provider}-#{@architecture}" <=>
+      "#{other.name}-#{other.version}-#{other.provider}-#{other.architecture}"
     end
   end
 end

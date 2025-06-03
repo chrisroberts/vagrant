@@ -1,7 +1,9 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "digest/md5"
 require "fileutils"
 require "thread"
-
 require "log4r"
 
 require "vagrant/util/silence_warnings"

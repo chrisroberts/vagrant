@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'optparse'
 
 require_relative 'download_mixins'
@@ -16,7 +19,7 @@ module VagrantPlugins
             o.banner = "Usage: vagrant box outdated [options]"
             o.separator ""
             o.separator "Checks if there is a new version available for the box"
-            o.separator "that are you are using. If you pass in the --global flag,"
+            o.separator "that you are using. If you pass in the --global flag,"
             o.separator "all boxes will be checked for updates."
             o.separator ""
             o.separator "Options:"
@@ -50,17 +53,17 @@ module VagrantPlugins
               machine: machine,
             }.merge(download_options))
           end
+          return 0
         end
 
         def outdated_global(download_options)
-          boxes = {}
           @env.boxes.all.reverse.each do |name, version, provider|
             box = @env.boxes.find(name, provider, version)
-            if !box.metadata_url
+            if !box&.metadata_url
               @env.ui.output(I18n.t(
                 "vagrant.box_outdated_no_metadata",
-                name: box.name,
-                provider: box.provider))
+                name: name,
+                provider: provider))
               next
             end
 
@@ -76,8 +79,7 @@ module VagrantPlugins
               next
             end
 
-            current = Gem::Version.new(box.version)
-            box_versions = md.versions(provider: box.provider)
+            box_versions = md.versions(provider: box.provider, architecture: box.architecture)
 
             if box_versions.empty?
               latest_box_version = box_versions.last.to_i
@@ -85,8 +87,7 @@ module VagrantPlugins
               latest_box_version = box_versions.last
             end
 
-            latest  = Gem::Version.new(latest_box_version)
-            if latest <= current
+            if !md.compatible_version_update?(box.version, latest_box_version, provider: box.provider, architecture: box.architecture)
               @env.ui.success(I18n.t(
                 "vagrant.box_up_to_date",
                 name: box.name,
@@ -98,7 +99,7 @@ module VagrantPlugins
                 name: box.name,
                 provider: box.provider,
                 current: box.version,
-                latest: latest.to_s,))
+                latest: latest_box_version.to_s,))
             end
           end
         end

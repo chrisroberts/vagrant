@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../base"
 
 require Vagrant.source_root.join("plugins/provisioners/ansible/config/host")
@@ -71,12 +74,14 @@ VF
   # Class methods for code reuse across examples
   #
 
-  def self.it_should_check_ansible_version()
-    it "execute 'ansible --version' before executing 'ansible-playbook'" do
-      expect(Vagrant::Util::Subprocess).to receive(:execute).
-        once.with('ansible', '--version', { :notify => [:stdout, :stderr] })
-      expect(Vagrant::Util::Subprocess).to receive(:execute).
-        once.with('ansible-playbook', any_args)
+  def self.it_should_check_ansible_version
+    it "execute 'Python ansible version check before executing 'ansible-playbook'" do
+      expect(Vagrant::Util::Subprocess).to receive(:execute)
+        .once.with('python3', '-c', "import importlib.metadata; print('ansible ' + importlib.metadata.version('ansible'))", { notify: %i[
+                     stdout stderr
+                   ] })
+      expect(Vagrant::Util::Subprocess).to receive(:execute)
+        .once.with('ansible-playbook', any_args)
     end
   end
 
@@ -91,7 +96,7 @@ VF
         expect(args[1]).to eq("--connection=ssh")
         expect(args[2]).to eq("--timeout=30")
 
-        inventory_count = args.count { |x| x =~ /^--inventory-file=.+$/ }
+        inventory_count = args.count { |x| x.match(/^--inventory-file=.+$/) if x.is_a?(String) }
         expect(inventory_count).to be > 0
 
         expect(args[args.length-2]).to eq("playbook.yml")
@@ -100,9 +105,9 @@ VF
 
     it "sets --limit argument" do
       expect(Vagrant::Util::Subprocess).to receive(:execute).with('ansible-playbook', any_args) { |*args|
-        all_limits = args.select { |x| x =~ /^(--limit=|-l)/ }
+        all_limits = args.select { |x| x.match(/^(--limit=|-l)/) if x.is_a?(String) }
         if config.raw_arguments
-          raw_limits = config.raw_arguments.select { |x| x =~ /^(--limit=|-l)/ }
+          raw_limits = config.raw_arguments.select { |x| x.match(/^(--limit=|-l)/) if x.is_a?(String) }
           expect(all_limits.length - raw_limits.length).to eq(1)
           expect(all_limits.last).to eq(raw_limits.last)
         else
@@ -181,7 +186,7 @@ VF
     it "generates an inventory with all active machines" do
       expect(Vagrant::Util::Subprocess).to receive(:execute).with('ansible-playbook', any_args) { |*args|
         expect(config.inventory_path).to be_nil
-        expect(File.exists?(generated_inventory_file)).to be(true)
+        expect(File.exist?(generated_inventory_file)).to be(true)
         inventory_content = File.read(generated_inventory_file)
         _ssh = config.compatibility_mode == VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0 ? "" : "_ssh"
         if with_user
@@ -326,6 +331,8 @@ VF
         "2.x.y.z": VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0,
         "4.3.2.1": VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0,
         "[core 2.11.0]": VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0,
+        "7.1.0": VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0,
+        "10.1.0": VagrantPlugins::Ansible::COMPATIBILITY_MODE_V2_0
       }
       valid_versions.each_pair do |ansible_version, mode|
         describe "and ansible version #{ansible_version}" do
@@ -347,7 +354,7 @@ VF
         "2.9.2.1",
       ]
       invalid_versions.each do |unknown_ansible_version|
-        describe "and `ansible --version` returning '#{unknown_ansible_version}'" do
+        describe "and `ansible version check returning '#{unknown_ansible_version}'" do
           before do
             allow(subject).to receive(:gather_ansible_version).and_return(unknown_ansible_version)
           end
@@ -697,7 +704,7 @@ VF
       it "generates an inventory with winrm connection settings" do
         expect(Vagrant::Util::Subprocess).to receive(:execute).with('ansible-playbook', any_args) { |*args|
           expect(config.inventory_path).to be_nil
-          expect(File.exists?(generated_inventory_file)).to be(true)
+          expect(File.exist?(generated_inventory_file)).to be(true)
           inventory_content = File.read(generated_inventory_file)
 
           expect(inventory_content).to include("machine1 ansible_connection=winrm ansible_ssh_host=127.0.0.1 ansible_ssh_port=55986 ansible_ssh_user='winner' ansible_ssh_pass='winword'\n")
@@ -731,7 +738,7 @@ VF
         expect(Vagrant::Util::Subprocess).to receive(:execute).with('ansible-playbook', any_args) { |*args|
           expect(args).to include("--inventory-file=#{existing_file}")
           expect(args).not_to include("--inventory-file=#{generated_inventory_file}")
-          expect(File.exists?(generated_inventory_file)).to be(false)
+          expect(File.exist?(generated_inventory_file)).to be(false)
         }.and_return(default_execute_result)
       end
 
@@ -1044,10 +1051,11 @@ VF
         expect {subject.provision}.to raise_error(VagrantPlugins::Ansible::Errors::AnsibleCommandFailed)
       end
 
-      it "execute three commands: ansible --version, ansible-galaxy, and ansible-playbook" do
+      it 'execute three commands: Python ansible version check, ansible-galaxy, and ansible-playbook' do
         expect(Vagrant::Util::Subprocess).to receive(:execute)
           .once
-          .with('ansible', '--version', { :notify => [:stdout, :stderr] })
+          .with('python3', '-c',
+                "import importlib.metadata; print('ansible ' + importlib.metadata.version('ansible'))", { notify: %i[stdout stderr] })
           .and_return(default_execute_result)
         expect(Vagrant::Util::Subprocess).to receive(:execute)
           .once

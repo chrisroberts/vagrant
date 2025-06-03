@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "vagrant"
 
 module VagrantPlugins
@@ -14,6 +17,11 @@ module VagrantPlugins
       guest_capability(:amazon, :flavor) do
         require_relative "cap/flavor"
         Cap::Flavor
+      end
+
+      guest_capability(:amazon, :configure_networks) do
+        require_relative "cap/configure_networks"
+        Cap::ConfigureNetworks
       end
     end
   end

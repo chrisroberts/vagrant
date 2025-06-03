@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../constants"
 require_relative "../errors"
 require_relative "../helpers"
@@ -390,7 +393,7 @@ gathered version stdout version:
               _, @gathered_version, _ = ansible_version_pattern.captures
               @gathered_version.strip!
               if @gathered_version
-                @gathered_version_major = @gathered_version.match(/(\d)\..+$/).captures[0].to_i
+                @gathered_version_major = @gathered_version.match(/(\d+)\..+$/).captures[0].to_i
               end
             end
           end

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module Ansible
     module Cap
@@ -10,8 +13,8 @@ module VagrantPlugins
             def self.ansible_installed(machine, version)
               command = 'test -x "$(command -v ansible)"'
 
-              if !version.empty?
-                command << "&& ansible --version | grep 'ansible #{version}'"
+              unless version.empty?
+                command << "&& [[ $(python3 -c \"import importlib.metadata; print(importlib.metadata.version('ansible'))\") == \"#{version}\" ]]"
               end
 
               machine.communicate.test command, sudo: false

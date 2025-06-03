@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 describe Vagrant::Action::Builtin::BoxCheckOutdated do
@@ -129,7 +132,7 @@ describe Vagrant::Action::Builtin::BoxCheckOutdated do
 
       expect(box).to receive(:has_update?).with(machine.config.vm.box_version,
           {download_options:
-            {automatic_check: true, ca_cert: nil, ca_path: nil, client_cert: nil, insecure: false, box_extra_download_options: []}}).
+            {automatic_check: true, ca_cert: nil, ca_path: nil, client_cert: nil, insecure: false, disable_ssl_revoke_best_effort: false, box_extra_download_options: []}}).
         and_return([md, md.version("1.1"), md.version("1.1").provider("virtualbox")])
 
       expect(app).to receive(:call).with(env).once
@@ -175,7 +178,7 @@ describe Vagrant::Action::Builtin::BoxCheckOutdated do
         expect(box).to receive(:has_update?).with(
           machine.config.vm.box_version,
           { download_options: { automatic_check: true, ca_cert: nil, ca_path: nil,
-            client_cert: nil, insecure: false, box_extra_download_options: []
+            client_cert: nil, disable_ssl_revoke_best_effort: false, insecure: false, box_extra_download_options: []
           }}).and_return(
             [md, md.version("1.2"), md.version("1.2").provider("virtualbox")]
           )
@@ -249,6 +252,7 @@ describe Vagrant::Action::Builtin::BoxCheckOutdated do
         machine.config.vm.box_download_client_cert = "baz"
         machine.config.vm.box_download_insecure = true
         machine.config.vm.box_download_options = {"opt": "val"}
+        machine.config.vm.box_download_disable_ssl_revoke_best_effort = true
         machine.config.vm.finalize!
       end
 
@@ -256,7 +260,8 @@ describe Vagrant::Action::Builtin::BoxCheckOutdated do
         expect(box).to receive(:has_update?).with(machine.config.vm.box_version,
           { download_options: {
             automatic_check: true, ca_cert: "foo", ca_path: "bar", client_cert: "baz", 
-            insecure: true, box_extra_download_options: ["--opt", "val"]}})
+            insecure: true, disable_ssl_revoke_best_effort: true,
+            box_extra_download_options: ["--opt", "val"]}})
 
         expect(app).to receive(:call).with(env).once
 
@@ -267,7 +272,8 @@ describe Vagrant::Action::Builtin::BoxCheckOutdated do
         expect(box).to receive(:has_update?).with(
           machine.config.vm.box_version,
           { download_options: {automatic_check: true, ca_cert: "oof", ca_path: "rab", client_cert: "zab", 
-            insecure: false, box_extra_download_options: ["--tpo"],
+            insecure: false, disable_ssl_revoke_best_effort: true,
+            box_extra_download_options: ["--tpo"],
           }})
 
         env[:ca_cert] = "oof"

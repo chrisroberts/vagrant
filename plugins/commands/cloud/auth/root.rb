@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module CloudCommand
     module AuthCommand
@@ -59,7 +62,6 @@ module VagrantPlugins
               keys.sort.each do |key|
                 opts.separator "     #{key}"
               end
-
               opts.separator ""
               opts.separator "For help on any individual subcommand run `vagrant cloud auth <subcommand> -h`"
             end

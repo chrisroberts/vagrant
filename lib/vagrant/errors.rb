@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 # This file contains all of the internal errors in Vagrant's core
 # commands, actions, etc.
 
@@ -136,6 +139,18 @@ module Vagrant
       error_key(:box_add_no_matching_provider)
     end
 
+    class BoxAddNoArchitectureSupport < VagrantError
+      error_key(:box_add_no_architecture_support)
+    end
+
+    class BoxAddNoMatchingArchitecture < VagrantError
+      error_key(:box_add_no_matching_architecture)
+    end
+
+    class BoxAddNoMatchingProviderVersion < VagrantError
+      error_key(:box_add_no_matching_provider_version)
+    end
+
     class BoxAddNoMatchingVersion < VagrantError
       error_key(:box_add_no_matching_version)
     end
@@ -168,6 +183,10 @@ module Vagrant
       error_key(:box_metadata_corrupted)
     end
 
+    class BoxMetadataMissingRequiredFields < VagrantError
+      error_key(:box_metadata_missing_required_fields)
+    end
+
     class BoxMetadataDownloadError < VagrantError
       error_key(:box_metadata_download_error)
     end
@@ -192,6 +211,10 @@ module Vagrant
       error_key(:box_not_found_with_provider)
     end
 
+    class BoxNotFoundWithProviderArchitecture < VagrantError
+      error_key(:box_not_found_with_provider_architecture)
+    end
+
     class BoxNotFoundWithProviderAndVersion < VagrantError
       error_key(:box_not_found_with_provider_and_version)
     end
@@ -204,12 +227,20 @@ module Vagrant
       error_key(:box_remove_not_found)
     end
 
+    class BoxRemoveArchitectureNotFound < VagrantError
+      error_key(:box_remove_architecture_not_found)
+    end
+
     class BoxRemoveProviderNotFound < VagrantError
       error_key(:box_remove_provider_not_found)
     end
 
     class BoxRemoveVersionNotFound < VagrantError
       error_key(:box_remove_version_not_found)
+    end
+
+    class BoxRemoveMultiArchitecture < VagrantError
+      error_key(:box_remove_multi_architecture)
     end
 
     class BoxRemoveMultiProvider < VagrantError
@@ -232,12 +263,20 @@ module Vagrant
       error_key(:box_update_multi_provider)
     end
 
+    class BoxUpdateMultiArchitecture < VagrantError
+      error_key(:box_update_multi_architecture)
+    end
+
     class BoxUpdateNoMetadata < VagrantError
       error_key(:box_update_no_metadata)
     end
 
     class BoxVerificationFailed < VagrantError
       error_key(:failed, "vagrant.actions.box.verify")
+    end
+
+    class BoxVersionInvalid < VagrantError
+      error_key(:box_version_invalid)
     end
 
     class BundlerDisabled < VagrantError
@@ -366,6 +405,10 @@ module Vagrant
 
     class DotfileUpgradeJSONError < VagrantError
       error_key(:dotfile_upgrade_json_error)
+    end
+
+    class DownloadAlreadyInProgress < VagrantError
+      error_key(:download_already_in_progress_error)
     end
 
     class DownloaderError < VagrantError
@@ -574,6 +617,10 @@ module Vagrant
 
     class NoEnvironmentError < VagrantError
       error_key(:no_env)
+    end
+
+    class OscdimgCommandMissingError < VagrantError
+      error_key(:oscdimg_command_missing)
     end
 
     class PackageIncludeMissing < VagrantError
@@ -832,6 +879,10 @@ module Vagrant
       error_key(:ssh_key_type_not_supported)
     end
 
+    class SSHKeyTypeNotSupportedByServer < VagrantError
+      error_key(:ssh_key_type_not_supported_by_server)
+    end
+
     class SSHNoExitStatus < VagrantError
       error_key(:ssh_no_exit_status)
     end
@@ -912,6 +963,10 @@ module Vagrant
       error_key(:uploader_interrupted)
     end
 
+    class VagrantLocked < VagrantError
+      error_key(:vagrant_locked)
+    end
+
     class VagrantInterrupt < VagrantError
       error_key(:interrupted)
     end
@@ -960,6 +1015,10 @@ module Vagrant
       error_key(:virtualbox_broken_version_040214)
     end
 
+    class VirtualBoxConfigNotFound < VagrantError
+      error_key(:virtualbox_config_not_found)
+    end
+
     class VirtualBoxDisksDefinedExceedLimit < VagrantError
       error_key(:virtualbox_disks_defined_exceed_limit)
     end
@@ -1002,6 +1061,10 @@ module Vagrant
 
     class VirtualBoxInstallIncomplete < VagrantError
       error_key(:virtualbox_install_incomplete)
+    end
+
+    class VirtualBoxMachineFolderNotFound < VagrantError
+      error_key(:virtualbox_machine_folder_not_found)
     end
 
     class VirtualBoxNoName < VagrantError

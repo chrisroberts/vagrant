@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../base"
 
 require "vagrant/util/platform"
@@ -32,23 +35,31 @@ describe VagrantPlugins::SyncedFolderRSync::RsyncHelper do
     let(:path) { "/foo/bar" }
 
     it "converts a directory match" do
+      expected_regex = /foo\/.*/
       expect(described_class.exclude_to_regexp("foo/")).
-        to eq(/^foo\/.[^\/]*/)
+        to eq(/foo\/.*/)
+      expect(path).to match(expected_regex)
     end
 
     it "converts the start anchor" do
+      expected_regex = /^\/foo\//
       expect(described_class.exclude_to_regexp("/foo")).
-        to eq(/^foo\//)
+        to eq(expected_regex)
+      expect(path).to match(expected_regex)
     end
 
     it "converts the **" do
+      expected_regex = /fo.*o.*/
       expect(described_class.exclude_to_regexp("fo**o")).
-        to eq(/^fo.*o\/.[^\/]*/)
+        to eq(expected_regex)
+      expect(path).to match(expected_regex)
     end
 
     it "converts the *" do
+      expected_regex = /fo*o.*/
       expect(described_class.exclude_to_regexp("fo*o")).
-        to eq(/^fo[^\/]*o\/.[^\/]*/)
+        to eq(expected_regex)
+      expect(path).to match(expected_regex)
     end
   end
 
@@ -166,6 +177,19 @@ describe VagrantPlugins::SyncedFolderRSync::RsyncHelper do
 
         expect { subject.rsync_single(machine, ssh_info, opts) }.
           to raise_error(Vagrant::Errors::RSyncPostCommandError)
+      end
+
+      it "should populate :owner and :group from ssh_info[:username] when values are nil" do
+        opts[:owner] = nil
+        opts[:group] = nil
+        ssh_info[:username] = "userfromssh"
+
+        expect(guest).to receive(:capability).with(:rsync_post, a_hash_including(
+          owner: "userfromssh",
+          group: "userfromssh",
+        ))
+
+        subject.rsync_single(machine, ssh_info, opts)
       end
     end
 
@@ -328,6 +352,19 @@ describe VagrantPlugins::SyncedFolderRSync::RsyncHelper do
       allow(Vagrant::Util::Subprocess).to receive(:execute){ result }
 
       allow(guest).to receive(:capability?){ false }
+    end
+
+    context "with extra args defined" do
+      before { ssh_info[:extra_args] = ["-o", "Compression=yes"] }
+
+      it "appends the extra arguments from ssh_info" do
+        expect(Vagrant::Util::Subprocess).to receive(:execute) { |*args|
+          cmd = args.detect { |a| a.is_a?(String) && a.start_with?("ssh") }
+          expect(cmd).to be
+          expect(cmd).to include("-o Compression=yes")
+        }.and_return(result)
+        subject.rsync_single(machine, ssh_info, opts)
+      end
     end
 
     context "with an IPv6 address" do

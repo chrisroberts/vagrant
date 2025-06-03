@@ -1,5 +1,7 @@
-require "digest/md5"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
+require "digest/md5"
 require "log4r"
 
 module VagrantPlugins

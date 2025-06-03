@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../base"
 
 require Vagrant.source_root.join("plugins/provisioners/salt/provisioner")
@@ -182,5 +185,4 @@ describe VagrantPlugins::Salt::Provisioner do
       end
     end
   end
-
 end

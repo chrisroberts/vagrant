@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "log4r"
 require "vagrant/util/experimental"
 
@@ -12,8 +15,6 @@ module VagrantPlugins
         # @param [Hash] disk_meta_file - A hash of all the previously defined disks from the last configure_disk action
         def self.cleanup_disks(machine, defined_disks, disk_meta_file)
           return if disk_meta_file.values.flatten.empty?
-
-          return if !Vagrant::Util::Experimental.feature_enabled?("disks")
 
           handle_cleanup_disk(machine, defined_disks, disk_meta_file["disk"])
           handle_cleanup_dvd(machine, defined_disks, disk_meta_file["dvd"])

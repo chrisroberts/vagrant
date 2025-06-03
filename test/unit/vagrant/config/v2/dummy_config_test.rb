@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 describe Vagrant::Config::V2::DummyConfig do
@@ -20,5 +23,12 @@ describe Vagrant::Config::V2::DummyConfig do
   it "should allow setting hash values" do
     expect { subject[:foo] = :bar }.
       to_not raise_error
+  end
+
+  it "should survive being the last arg to a method that captures kwargs without a ruby conversion error" do
+    arg_capturer = lambda { |*args, **kwargs| }
+    expect {
+      arg_capturer.call(subject)
+    }.to_not raise_error
   end
 end

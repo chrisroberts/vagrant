@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "log4r"
 
 require "vagrant/util/platform"
@@ -70,10 +73,14 @@ module Vagrant
 
           opts[:extra_args] << command
           opts[:subprocess] = true
-          env[:ssh_run_exit_status] = Util::SSH.exec(info, opts)
+          env[:ssh_run_exit_status] = _raw_ssh_exec(env, info, opts)
 
           # Call the next middleware
           @app.call(env)
+        end
+
+        def _raw_ssh_exec(env, info, opts)
+          Util::SSH.exec(info, opts)
         end
       end
     end

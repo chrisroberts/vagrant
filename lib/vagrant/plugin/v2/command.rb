@@ -1,5 +1,7 @@
-require 'log4r'
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
+require 'log4r'
 require "vagrant/util/safe_puts"
 
 module Vagrant
@@ -107,6 +109,7 @@ module Vagrant
           }
           raise Errors::NoEnvironmentError if requires_local_env && !@env.root_path
 
+          @logger.info("getting active machines")
           # Cache the active machines outside the loop
           active_machines = @env.active_machines
 
@@ -214,6 +217,8 @@ module Vagrant
             end
           end
 
+          @logger.debug("have machine list to process")
+
           # Make sure we're only working with one VM if single target
           if options[:single_target] && machines.length != 1
             @logger.debug("Using primary machine since single target")
@@ -230,7 +235,7 @@ module Vagrant
           color_index = 0
 
           machines.each do |machine|
-            if (machine.state && machine.state.id != :not_created && 
+            if (machine.state && machine.state.id != :not_created &&
                 !machine.index_uuid.nil? && !@env.machine_index.include?(machine.index_uuid))
               machine.recover_machine(machine.state.id)
             end

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/commands/autocomplete/command/install")
@@ -12,6 +15,16 @@ describe VagrantPlugins::CommandAutocomplete::Command::Install do
     env.vagrantfile("")
     env.create_vagrant_env
   end
+
+  let(:homedir) { Dir.mktmpdir("homedir") }
+
+  before {
+    allow(Dir).to receive(:home) { homedir }
+  }
+
+  after {
+    FileUtils.rm_rf(homedir)
+  }
 
   subject { described_class.new(argv, iso_env) }
 

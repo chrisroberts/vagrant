@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/commands/cloud/search")
@@ -42,6 +45,7 @@ describe VagrantPlugins::CloudCommand::Command::Search do
     end
 
     context "with valid options" do
+      let(:architecture) { double("architecture") }
       let(:provider) { double("provider") }
       let(:sort) { double("sort") }
       let(:order) { double("order") }
@@ -49,6 +53,7 @@ describe VagrantPlugins::CloudCommand::Command::Search do
       let(:page) { double("page") }
 
       let(:options) { {
+        architecture: architecture,
         provider: provider,
         sort: sort,
         order: order,

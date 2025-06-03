@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/communicators/winrm/shell")
@@ -169,6 +172,12 @@ describe VagrantPlugins::CommunicatorWinRM::WinRMShell do
         expect(shell).to receive(:run).with("dir").and_return(output)
         expect(subject.cmd("dir").exitcode).to eq(0)
       end
+    end
+
+    it "should catch timeout errors" do
+      expect(connection).to receive(:shell).with(:cmd, { })
+      expect(shell).to receive(:run).with("hostname").and_raise(IO::TimeoutError)
+      expect { subject.cmd("hostname") }.to raise_error(VagrantPlugins::CommunicatorWinRM::Errors::ConnectionTimeout)
     end
   end
 

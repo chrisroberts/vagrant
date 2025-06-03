@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../cap/validate_disk_ext"
 
 module VagrantPlugins
@@ -32,7 +35,7 @@ module VagrantPlugins
 
           if !controller
             raise Vagrant::Errors::VirtualBoxDisksNoSupportedControllers,
-              supported_types: supported_types.join(" ,")
+              supported_types: supported_types.join(", ")
           end
 
           controller
@@ -64,7 +67,7 @@ module VagrantPlugins
           controller = ordered.first
           if !controller
             raise Vagrant::Errors::VirtualBoxDisksNoSupportedControllers,
-              supported_types: supported_types.join(" ,")
+              supported_types: supported_types.join(", ")
           end
 
           controller

@@ -1,6 +1,9 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../ssh/communicator", __FILE__)
 
-require 'net/sftp'
+require "net/sftp"
 
 module VagrantPlugins
   module CommunicatorWinSSH

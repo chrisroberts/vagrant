@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/communicators/ssh/communicator")
@@ -10,6 +13,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
   # SSH configuration information mock
   let(:ssh) do
     double("ssh",
+      key_type: :auto,
       timeout: 1,
       host: nil,
       port: 5986,
@@ -65,7 +69,8 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
   let(:command_stderr_data) { '' }
   # Mock for net-ssh scp
   let(:scp) { double("scp") }
-
+  # Value returned from remote ssh supported key check
+  let(:sudo_supported_key_list) { "pubkeyacceptedalgorithms ssh-rsa" }
 
   # Setup for commands using the net-ssh connection. This can be reused where needed
   # by providing to `before`
@@ -89,13 +94,16 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
       and_yield(nil, exit_data)
     # Return mocked net-ssh connection during setup
     allow(communicator).to receive(:retryable).and_return(connection)
+    # Stub in a response for supported key types check
+    allow(communicator).to receive(:sudo).with("sshd -T | grep key", any_args).
+      and_yield(:stdout, sudo_supported_key_list).and_return(0)
   end
 
   before do
     allow(host).to receive(:capability?).and_return(false)
   end
 
-  describe ".wait_for_ready" do
+  describe "#wait_for_ready" do
     before(&connection_setup)
     context "with no static config (default scenario)" do
       context "when ssh_info requires a multiple tries before it is ready" do
@@ -158,7 +166,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe "reset!" do
+  describe "#reset!" do
     let(:connection) { double("connection") }
 
     before do
@@ -178,7 +186,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe ".ready?" do
+  describe "#ready?" do
     before(&connection_setup)
     it "returns true if shell test is successful" do
       expect(communicator.ready?).to be(true)
@@ -242,6 +250,8 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
         let(:openssh){ :openssh }
         let(:private_key_file){ double("private_key_file") }
         let(:path_joiner){ double("path_joiner") }
+        let(:algorithms) { double(:algorithms) }
+        let(:transport) { double(:transport, algorithms: algorithms) }
 
         before do
           allow(Vagrant::Util::Keypair).to receive(:create).
@@ -255,36 +265,127 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
           allow(path_joiner).to receive(:join).and_return(private_key_file)
           allow(guest).to receive(:capability).with(:insert_public_key)
           allow(guest).to receive(:capability).with(:remove_public_key)
+          allow(connection).to receive(:transport).and_return(transport)
+          allow(communicator).to receive(:supported_key_types).and_raise(described_class.const_get(:ServerDataError))
         end
-
-        after{ communicator.ready? }
 
         it "should create a new key pair" do
           expect(Vagrant::Util::Keypair).to receive(:create).
             and_return([new_public_key, new_private_key, openssh])
+          communicator.ready?
         end
 
         it "should call the insert_public_key guest capability" do
           expect(guest).to receive(:capability).with(:insert_public_key, openssh)
+          communicator.ready?
         end
 
         it "should write the new private key" do
           expect(private_key_file).to receive(:write).with(new_private_key)
+          communicator.ready?
         end
 
         it "should call the set_ssh_key_permissions host capability" do
           expect(host).to receive(:capability?).with(:set_ssh_key_permissions).and_return(true)
           expect(host).to receive(:capability).with(:set_ssh_key_permissions, private_key_file)
+          communicator.ready?
         end
 
         it "should remove the default public key" do
           expect(guest).to receive(:capability).with(:remove_public_key, any_args)
+          communicator.ready?
+        end
+
+        context "with server algorithm support data" do
+          before do
+            allow(communicator).to receive(:supported_key_types).and_return(valid_key_types)
+          end
+
+          context "when rsa is the only match" do
+            let(:valid_key_types) { ["ssh-ecdsa", "ssh-rsa"] }
+
+            it "should use rsa type" do
+              expect(Vagrant::Util::Keypair).to receive(:create).
+                with(type: :rsa).and_call_original
+              communicator.ready?
+            end
+          end
+
+          context "when ed25519 and rsa are both available" do
+            let(:valid_key_types) { ["ssh-ed25519", "ssh-rsa"] }
+
+            it "should use ed25519 type" do
+              expect(Vagrant::Util::Keypair).to receive(:create).
+                with(type: :ed25519).and_call_original
+              communicator.ready?
+            end
+          end
+
+          context "when ed25519 is the only match" do
+            let(:valid_key_types) { ["ssh-ecdsa", "ssh-ed25519"] }
+
+            it "should use ed25519 type" do
+              expect(Vagrant::Util::Keypair).to receive(:create).
+                with(type: :ed25519).and_call_original
+              communicator.ready?
+            end
+          end
+
+          context "with key_type set as :auto in configuration" do
+            let(:valid_key_types) { ["ssh-ed25519", "ssh-rsa"] }
+            before { allow(ssh).to receive(:key_type).and_return(:auto) }
+
+            it "should use the preferred ed25519 key type" do
+              expect(Vagrant::Util::Keypair).to receive(:create).
+                with(type: :ed25519).and_call_original
+              communicator.ready?
+            end
+
+            context "when no supported key type is detected" do
+              let(:valid_key_types) { ["fake-type", "other-fake-type"] }
+
+              it "should raise an error" do
+                expect { communicator.ready? }.to raise_error(Vagrant::Errors::SSHKeyTypeNotSupportedByServer)
+              end
+            end
+          end
+
+          context "with key_type set as :ecdsa521 in configuration" do
+            let(:valid_key_types) { ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp521", "ecdsa-sha2-nistp256"] }
+            before { allow(ssh).to receive(:key_type).and_return(:ecdsa521) }
+
+            it "should use the requested key type" do
+              expect(Vagrant::Util::Keypair).to receive(:create).
+                with(type: :ecdsa521).and_call_original
+              communicator.ready?
+            end
+
+            context "when requested key type is not supported" do
+              let(:valid_key_types) { ["ssh-ed25519", "ssh-rsa", "ecdsa-sha2-nistp256"] }
+
+              it "should raise an error" do
+                expect { communicator.ready? }.to raise_error(Vagrant::Errors::SSHKeyTypeNotSupportedByServer)
+              end
+            end
+          end
+        end
+
+        context "when an error is encountered getting server data" do
+          before do
+            expect(communicator).to receive(:supported_key_types).and_raise(StandardError)
+          end
+
+          it "should default to rsa key" do
+            expect(Vagrant::Util::Keypair).to receive(:create).
+              with(type: :rsa).and_call_original
+            communicator.ready?
+          end
         end
       end
     end
   end
 
-  describe ".execute" do
+  describe "#execute" do
     before(&connection_setup)
     it "runs valid command and returns successful status code" do
       expect(command_channel).to receive(:send_data).with(/ls \/\n/)
@@ -478,7 +579,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe ".test" do
+  describe "#test" do
     before(&connection_setup)
     context "with exit code as zero" do
       it "returns true" do
@@ -497,7 +598,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe ".upload" do
+  describe "#upload" do
     before do
       expect(communicator).to receive(:scp_connect).and_yield(scp)
       allow(communicator).to receive(:create_remote_directory)
@@ -603,7 +704,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe ".download" do
+  describe "#download" do
     before do
       expect(communicator).to receive(:scp_connect).and_yield(scp)
     end
@@ -614,7 +715,7 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
     end
   end
 
-  describe ".connect" do
+  describe "#connect" do
 
     it "cannot be called directly" do
       expect{ communicator.connect }.to raise_error(NoMethodError)
@@ -668,6 +769,32 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
           )
         ).and_return(true)
         communicator.send(:connect)
+      end
+
+      context "keep ssh connection alive" do
+        let(:ssh) do
+          double("ssh",
+            timeout: 1,
+            host: nil,
+            port: 5986,
+            guest_port: 5986,
+            pty: false,
+            keep_alive: true,
+            insert_key: insert_ssh_key,
+            export_command_template: export_command_template,
+            shell: 'bash -l'
+          )
+        end
+
+        it "sets keepalive settings" do
+          expect(Net::SSH).to receive(:start).with(
+            nil, nil, hash_including(
+              keepalive: true,
+              keepalive_interval: 5
+            )
+          ).and_return(true)
+          communicator.send(:connect)
+        end
       end
     end
 
@@ -901,9 +1028,116 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
         communicator.send(:connect)
       end
     end
+
+    context "with connect_retries configured" do
+      before do
+        expect(machine).to receive(:ssh_info).and_return(
+          host: '127.0.0.1',
+          port: 2222,
+          connect_retries: 3
+        )
+      end
+
+      it "should retry the connect three times" do
+        expect(Net::SSH).to receive(:start).and_raise(Errno::EACCES).twice
+        expect(Net::SSH).to receive(:start)
+
+        communicator.send(:connect)
+      end
+
+      it "should override from passed options" do
+        expect(Net::SSH).to receive(:start).and_raise(Errno::EACCES).thrice
+        expect(Net::SSH).to receive(:start)
+
+        communicator.send(:connect, retries: 4)
+      end
+    end
+
+    context "with connect_retry_delay configured" do
+      let(:retries) { 3 }
+      let(:sleep_delay) { 5 }
+
+      before do
+        expect(machine).to receive(:ssh_info).and_return(
+          host: '127.0.0.1',
+          port: 2222,
+          connect_retries: retries,
+          connect_retry_delay: sleep_delay
+        )
+      end
+
+      it "should sleep twice while retrying" do
+        expect(Net::SSH).to receive(:start).and_raise(Errno::EACCES).twice
+        expect(Net::SSH).to receive(:start)
+
+        expect(communicator).to receive(:sleep).with(sleep_delay).twice
+
+        communicator.send(:connect)
+      end
+
+      it "should overrride from passed options" do
+        expect(Net::SSH).to receive(:start).and_raise(Errno::EACCES).twice
+        expect(Net::SSH).to receive(:start)
+
+        expect(communicator).to receive(:sleep).with(20).twice
+
+        communicator.send(:connect, retry_delay: 20)
+      end
+
+      context "when no retries are configured" do
+        let(:retries) { 0 }
+
+        it "should not sleep" do
+          expect(Net::SSH).to receive(:start).and_raise(Errno::EACCES)
+          expect(communicator).not_to receive(:sleep)
+
+          expect { communicator.send(:connect) }.to raise_error(Vagrant::Errors::SSHConnectEACCES)
+        end
+      end
+
+    end
   end
 
-  describe ".generate_environment_export" do
+  describe "#insecure_key?" do
+    let(:key_data) { "" }
+    let(:key_file) {
+      if !@key_file
+        f = Tempfile.new
+        f.write(key_data)
+        f.close
+        @key_file = f.path
+      end
+      @key_file
+    }
+
+    after { File.delete(key_file) }
+
+    context "when using rsa private key" do
+      let(:key_data) { File.read(Vagrant.source_root.join("keys", "vagrant.key.rsa")) }
+
+      it "should match as insecure key" do
+        expect(communicator.send(:insecure_key?, key_file)).to be_truthy
+      end
+    end
+
+    context "when using ed25519 private key" do
+      let(:key_data) { File.read(Vagrant.source_root.join("keys", "vagrant.key.ed25519")) }
+
+      it "should match as insecure key" do
+        expect(communicator.send(:insecure_key?, key_file)).to be_truthy
+      end
+    end
+
+    context "when using unknown private key" do
+      let(:key_data) { "invalid data" }
+
+      it "should not match as insecure key" do
+        expect(communicator.send(:insecure_key?, key_file)).to be_falsey
+      end
+    end
+  end
+
+  describe "#generate_environment_export" do
     it "should generate bourne shell compatible export" do
       expect(communicator.send(:generate_environment_export, "TEST", "value")).to eq("export TEST=\"value\"\n")
     end
@@ -913,6 +1147,131 @@ describe VagrantPlugins::CommunicatorSSH::Communicator do
 
       it "should generate custom export based on template" do
         expect(communicator.send(:generate_environment_export, "TEST", "value")).to eq("setenv TEST value\n")
+      end
+    end
+  end
+
+  describe "#supported_key_types" do
+    let(:sudo_result) { 0 }
+    let(:sudo_data) { "" }
+    let(:server_data_error) { VagrantPlugins::CommunicatorSSH::Communicator::ServerDataError }
+    let(:transport) { double("transport", algorithms: algorithms) }
+    let(:algorithms) { double("algorithms") }
+
+    before do
+      allow(communicator).to receive(:ready?).and_return(true)
+      expect(communicator).to receive(:sudo).
+        with("sshd -T | grep key", any_args).
+        and_yield(:stdout, sudo_data).
+        and_return(sudo_result)
+      # The @connection value is checked to determine if supported key types
+      # can be checked. To facilitate this, set it to a non-nil value
+      communicator.instance_variable_set(:@connection, connection)
+      allow(connection).to receive(:transport).and_return(transport)
+    end
+
+    it "should raise an error when no data is returned" do
+      expect { communicator.send(:supported_key_types) }.to raise_error(server_data_error)
+    end
+
+    context "when sudo command is unsuccessful" do
+      let(:sudo_result) { 1 }
+
+      it "should inspect the net-ssh connection" do
+        expect(algorithms).to receive(:instance_variable_get).
+          with(:@server_data).and_return({})
+        communicator.send(:supported_key_types)
+      end
+    end
+
+    context "when data includes pubkeyacceptedalgorithms" do
+      let(:sudo_data) do
+        "pubkeyauthentication yes
+gssapikeyexchange no
+gssapistorecredentialsonrekey no
+trustedusercakeys none
+revokedkeys none
+authorizedkeyscommand none
+authorizedkeyscommanduser none
+hostkeyagent none
+hostbasedacceptedkeytypes ecdsa-sha2-nistp521,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+hostkeyalgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+pubkeyacceptedalgorithms rsa-sha2-512,rsa-sha2-256,ssh-rsa
+authorizedkeysfile .ssh/authorized_keys
+hostkey /etc/ssh/ssh_host_rsa_key
+rekeylimit 0 0"
+      end
+
+      it "should return expected values" do
+        expect(communicator.send(:supported_key_types)).to eq(["rsa-sha2-512", "rsa-sha2-256", "ssh-rsa"])
+      end
+    end
+
+    context "when data includes pubkeyacceptedkeytypes" do
+      let(:sudo_data) do
+        "pubkeyauthentication yes
+gssapikeyexchange no
+gssapistorecredentialsonrekey no
+trustedusercakeys none
+revokedkeys none
+authorizedkeyscommand none
+authorizedkeyscommanduser none
+hostkeyagent none
+hostbasedacceptedkeytypes ecdsa-sha2-nistp521,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+hostkeyalgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+pubkeyacceptedkeytypes rsa-sha2-512,rsa-sha2-256,ssh-rsa
+authorizedkeysfile .ssh/authorized_keys
+hostkey /etc/ssh/ssh_host_rsa_key
+rekeylimit 0 0"
+      end
+
+      it "should return expected values" do
+        expect(communicator.send(:supported_key_types)).
+          to eq(["rsa-sha2-512", "rsa-sha2-256", "ssh-rsa"])
+      end
+    end
+
+    context "when data does not include pubkeyacceptedalgorithms or pubkeyacceptedkeytypes" do
+      let(:sudo_data) do
+        "pubkeyauthentication yes
+gssapikeyexchange no
+gssapistorecredentialsonrekey no
+trustedusercakeys none
+revokedkeys none
+authorizedkeyscommand none
+authorizedkeyscommanduser none
+hostkeyagent none
+hostbasedacceptedkeytypes ecdsa-sha2-nistp521,ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+hostkeyalgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256,ssh-rsa
+authorizedkeysfile .ssh/authorized_keys
+hostkey /etc/ssh/ssh_host_rsa_key
+rekeylimit 0 0"
+      end
+
+      it "should use hostkeyalgorithms" do
+        expect(communicator.send(:supported_key_types)).
+          to eq(["ssh-ed25519", "rsa-sha2-512", "rsa-sha2-256", "ssh-rsa"])
+      end
+    end
+
+    context "when data does not include defined config options" do
+      let(:sudo_data) do
+        "pubkeyauthentication yes
+gssapikeyexchange no
+gssapistorecredentialsonrekey no
+trustedusercakeys none
+revokedkeys none
+authorizedkeyscommand none
+authorizedkeyscommanduser none
+hostkeyagent none
+authorizedkeysfile .ssh/authorized_keys
+hostkey /etc/ssh/ssh_host_rsa_key
+rekeylimit 0 0"
+      end
+
+      it "should raise error" do
+        expect { communicator.send(:supported_key_types) }.
+          to raise_error(server_data_error)
       end
     end
   end

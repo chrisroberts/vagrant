@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "pathname"
 require "vagrant/util/caps"
 
@@ -33,7 +36,7 @@ module VagrantPlugins
           source_directory = Pathname.new(source_directory)
           file_destination = self.ensure_output_iso(extra_opts[:file_destination])
 
-          iso_command = [BUILD_ISO_CMD, "makehybrid", "-hfs", "-iso", "-joliet", "-ov"]
+          iso_command = [BUILD_ISO_CMD, "makehybrid", "-iso", "-joliet", "-ov"]
           iso_command.concat(["-default-volume-name", extra_opts[:volume_id]]) if extra_opts[:volume_id]
           iso_command << "-o"
           iso_command << file_destination.to_s

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "ipaddr"
 require "resolv"
 require "set"
@@ -21,8 +24,13 @@ module VagrantPlugins
         VBOX_NET_CONF = "/etc/vbox/networks.conf".freeze
         # Version of VirtualBox that introduced hostonly network range restrictions
         HOSTONLY_VALIDATE_VERSION = Gem::Version.new("6.1.28")
+        # Version of VirtualBox on darwin platform that ignores restrictions
+        DARWIN_IGNORE_HOSTONLY_VALIDATE_VERSION = Gem::Version.new("7.0.0")
         # Default valid range for hostonly networks
-        HOSTONLY_DEFAULT_RANGE = [IPAddr.new("192.168.56.0/21").freeze].freeze
+        HOSTONLY_DEFAULT_RANGE = [
+          IPAddr.new("192.168.56.0/21").freeze,
+          IPAddr.new("fe80::/10").freeze
+        ].freeze
 
         include Vagrant::Util::NetworkIP
         include Vagrant::Util::ScopedHashOverride
@@ -67,6 +75,21 @@ module VagrantPlugins
             # Internal network is a special type
             if type == :private_network && options[:intnet]
               type = :internal_network
+            end
+
+            if !options.key?(:type) && options.key?(:ip)
+              begin
+                addr = IPAddr.new(options[:ip])
+                options[:type] = if addr.ipv4?
+                                   :static
+                                 else
+                                   :static6
+                                 end
+              rescue IPAddr::Error => err
+                raise Vagrant::Errors::NetworkAddressInvalid,
+                      address: options[:ip], mask: options[:netmask],
+                      error: err.message
+              end
             end
 
             # Configure it
@@ -282,8 +305,9 @@ module VagrantPlugins
             elsif ip.ipv6?
               options[:netmask] ||= 64
 
-              # Append a 6 to the end of the type
-              options[:type] = "#{options[:type]}6".to_sym
+              # Append a 6 to the end of the type if it is not already set
+              options[:type] = "#{options[:type]}6".to_sym if
+                !options[:type].to_s.end_with?("6")
             else
               raise IPAddr::AddressFamilyError, 'unknown address family'
             end
@@ -333,6 +357,16 @@ module VagrantPlugins
             dhcp_options[:dhcp_ip] = options[:dhcp_ip] || (ip_range.first | 2).to_s
             dhcp_options[:dhcp_lower] = options[:dhcp_lower] || (ip_range.first | 3).to_s
             dhcp_options[:dhcp_upper] = options[:dhcp_upper] || (ip_range.last(2).first).to_s
+          end
+
+          # Find the hostonly interface name if display name was
+          # provided
+          if options[:name]
+            hostif = @env[:machine].provider.driver.read_host_only_interfaces.detect { |interface|
+              interface[:name] == options[:name] ||
+                interface[:display_name] == options[:name]
+            }
+            options[:name] = hostif[:name] if hostif
           end
 
           return {
@@ -479,10 +513,7 @@ module VagrantPlugins
         #-----------------------------------------------------------------
         # This creates a host only network for the given configuration.
         def hostonly_create_network(config)
-          @env[:machine].provider.driver.create_host_only_network(
-            adapter_ip: config[:adapter_ip],
-            netmask:    config[:netmask]
-          )
+          @env[:machine].provider.driver.create_host_only_network(config)
         end
 
         # This finds a matching host only network for the given configuration.
@@ -517,7 +548,11 @@ module VagrantPlugins
         # placed on the valid ranges
         def validate_hostonly_ip!(ip, driver)
           return if Gem::Version.new(driver.version) < HOSTONLY_VALIDATE_VERSION ||
-            Vagrant::Util::Platform.windows?
+                    (
+                      Vagrant::Util::Platform.darwin? &&
+                      Gem::Version.new(driver.version) >= DARWIN_IGNORE_HOSTONLY_VALIDATE_VERSION
+                    ) ||
+                    Vagrant::Util::Platform.windows?
 
           ip = IPAddr.new(ip.to_s) if !ip.is_a?(IPAddr)
           valid_ranges = load_net_conf

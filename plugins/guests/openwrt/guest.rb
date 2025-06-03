@@ -1,6 +1,9 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module GuestOpenWrt
-    class Guest
+    class Guest < Vagrant.plugin("2", :guest)
       # Name used for guest detection
       GUEST_DETECTION_NAME = "openwrt".freeze
 

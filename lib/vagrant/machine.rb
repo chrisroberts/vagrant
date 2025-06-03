@@ -1,9 +1,11 @@
-require_relative "util/ssh"
-require_relative "action/builtin/mixin_synced_folders"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
+require_relative "./util/ssh"
+require_relative "./action/builtin/mixin_synced_folders"
 
 require "digest/md5"
 require "thread"
-
 require "log4r"
 
 module Vagrant
@@ -178,10 +180,6 @@ module Vagrant
 
       # Extra env keys are the remaining opts
       extra_env = opts.dup
-      # An environment is required for triggers to function properly. This is
-      # passed in specifically for the `#Action::Warden` class triggers. We call it
-      # `:trigger_env` instead of `env` in case it collides with an existing environment
-      extra_env[:trigger_env] = @env
 
       check_cwd # Warns the UI if the machine was last used on a different dir
 
@@ -325,6 +323,7 @@ module Vagrant
           entry.local_data_path = @env.local_data_path
           entry.name = @name.to_s
           entry.provider = @provider_name.to_s
+          entry.architecture = @architecture
           entry.state = "preparing"
           entry.vagrantfile_path = @env.root_path
           entry.vagrantfile_name = @env.vagrantfile_name
@@ -333,6 +332,7 @@ module Vagrant
             entry.extra_data["box"] = {
               "name"     => @box.name,
               "provider" => @box.provider.to_s,
+              "architecture" => @box.architecture,
               "version"  => @box.version.to_s,
             }
           end
@@ -348,6 +348,7 @@ module Vagrant
           end
         end
       else
+        @logger.debug("machine ID has been unset, deregistering machine and removing data directory")
         # Delete the file, since the machine is now destroyed
         id_file.delete if id_file && id_file.file?
         uid_file.delete if uid_file && uid_file.file?
@@ -487,6 +488,8 @@ module Vagrant
       info[:forward_x11] = @config.ssh.forward_x11
       info[:forward_env] = @config.ssh.forward_env
       info[:connect_timeout] = @config.ssh.connect_timeout
+      info[:connect_retries] = @config.ssh.connect_retries
+      info[:connect_retry_delay] = @config.ssh.connect_retry_delay
 
       info[:ssh_command] = @config.ssh.ssh_command if @config.ssh.ssh_command
 
@@ -499,8 +502,8 @@ module Vagrant
       if !info[:private_key_path] && !info[:password]
         if @config.ssh.private_key_path
           info[:private_key_path] = @config.ssh.private_key_path
-        elsif info[:keys_only]
-          info[:private_key_path] = @env.default_private_key_path
+        else
+          info[:private_key_path] = @env.default_private_key_paths
         end
       end
 
@@ -586,6 +589,7 @@ module Vagrant
         entry.extra_data["box"] = {
           "name"     => @box.name,
           "provider" => @box.provider.to_s,
+          "architecture" => @box.architecture,
           "version"  => @box.version.to_s,
         }
       end

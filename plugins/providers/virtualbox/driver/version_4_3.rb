@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'ipaddr'
 require 'log4r'
 
@@ -489,6 +492,8 @@ module VagrantPlugins
                 info[:ipv6_prefix] = $1.to_s.strip
               elsif line =~ /^Status:\s+(.+?)$/
                 info[:status] = $1.to_s
+              elsif line =~ /^VBoxNetworkName:\s+(.+?)$/
+                info[:display_name] = $1.to_s
               end
             end
 

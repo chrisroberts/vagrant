@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "log4r"
 
 require 'childprocess'
@@ -146,6 +149,13 @@ module Vagrant
             "-o", "UserKnownHostsFile=/dev/null"]
         end
 
+        if !ssh_info[:disable_deprecated_algorithms]
+          command_options += [
+            "-o", "PubkeyAcceptedKeyTypes=+ssh-rsa",
+            "-o", "HostKeyAlgorithms=+ssh-rsa",
+          ]
+        end
+
         # If we're not in plain mode and :private_key_path is set attach the private key path(s).
         if !plain_mode && options[:private_key_path]
           options[:private_key_path].each do |path|
@@ -223,13 +233,21 @@ module Vagrant
         # Invoke SSH with all our options
         if !opts[:subprocess]
           LOGGER.info("Invoking SSH: #{ssh} #{command_options.inspect}")
-          SafeExec.exec(ssh, *command_options)
+          _raw_exec(ssh, command_options, ssh_info, opts)
           return
+        else
+          LOGGER.info("Executing SSH in subprocess: #{ssh} #{command_options.inspect}")
+          return _raw_subprocess(ssh, command_options, ssh_info, opts)
         end
+      end
 
+      def self._raw_exec(ssh, command_options, ssh_info, opts)
+        SafeExec.exec(ssh, *command_options)
+      end
+
+      def self._raw_subprocess(ssh, command_options, ssh_info, opts)
         # If we're still here, it means we're supposed to subprocess
         # out to ssh rather than exec it.
-        LOGGER.info("Executing SSH in subprocess: #{ssh} #{command_options.inspect}")
         process = ChildProcess.build(ssh, *command_options)
         process.io.inherit!
 

@@ -1,6 +1,7 @@
-require "pathname"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
-require "vagrant"
+require "pathname"
 
 module VagrantPlugins
   module FileUpload

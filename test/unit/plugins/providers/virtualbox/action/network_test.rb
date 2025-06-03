@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../base"
 
 require "vagrant/util/platform"
@@ -59,6 +62,74 @@ describe VagrantPlugins::ProviderVirtualBox::Action::Network do
       expect(subject).to receive(:validate_hostonly_ip!)
       subject.hostonly_config(options)
     end
+
+    context "when address is ipv6" do
+      let(:address) { "::1" }
+
+      context "when type is static6" do
+        let(:type) { :static6 }
+
+        it "should have a static6 type" do
+          result = subject.hostonly_config(options)
+          expect(result[:type]).to eq(:static6)
+        end
+      end
+
+      context "when type is static" do
+        let(:type) { :static }
+
+        it "should have static6 type" do
+          result = subject.hostonly_config(options)
+          expect(result[:type]).to eq(:static6)
+        end
+      end
+    end
+
+    context "when name is provided as interface name" do
+      let(:options) {
+        {
+          type: type,
+          ip: address,
+          name: name
+        }
+      }
+      let(:name) { "hostonly_ifname" }
+      let(:display_name) { "HostInterfaceNetworking-hostonly_ifname" }
+      let(:hostonly_networks) do
+        [
+          {
+            name: name,
+            display_name: display_name
+          }
+        ]
+      end
+
+      before { allow(driver).to receive(:read_host_only_interfaces).and_return(hostonly_networks) }
+
+      it "should lookup host only networks" do
+        expect(driver).to receive(:read_host_only_interfaces).and_return(hostonly_networks)
+
+        subject.hostonly_config(options)
+      end
+
+      it "should not change the name" do
+        expect(subject.hostonly_config(options)[:name]) == name
+      end
+
+      context "when display name is provided in options" do
+        let(:options) {
+          {
+            type: type,
+            ip: address,
+            name: display_name
+          }
+        }
+
+        it "should change the name to the interface name" do
+          expect(subject.hostonly_config(options)[:name]) == name
+        end
+      end
+    end
   end
 
   describe "#validate_hostonly_ip!" do
@@ -67,56 +138,103 @@ describe VagrantPlugins::ProviderVirtualBox::Action::Network do
     let(:vbox_version) { "6.1.28" }
 
     before do
-      allow(subject).to receive(:load_net_conf).and_return(net_conf)
       expect(subject).to receive(:validate_hostonly_ip!).and_call_original
     end
 
-    it "should load net configuration" do
-      expect(subject).to receive(:load_net_conf).and_return(net_conf)
-      subject.validate_hostonly_ip!(address, driver)
-    end
-
-    context "when address is within ranges" do
-      it "should not error" do
-        subject.validate_hostonly_ip!(address, driver)
-      end
-    end
-
-    context "when address is not found within ranges" do
-      let(:net_conf) { [IPAddr.new("127.0.0.1/20")] }
-
-      it "should raise an error" do
-        expect {
-          subject.validate_hostonly_ip!(address, driver)
-        }.to raise_error(Vagrant::Errors::VirtualBoxInvalidHostSubnet)
-      end
-    end
-
-    context "when virtualbox version does not restrict range" do
-      let(:vbox_version) { "6.1.20" }
-
-      it "should not error" do
-        subject.validate_hostonly_ip!(address, driver)
-      end
-
-      it "should not attempt to load network configuration" do
-        expect(subject).not_to receive(:load_net_conf)
-        subject.validate_hostonly_ip!(address, driver)
-      end
-    end
-
-    context "when platform is windows" do
+    context "when configuration file exists" do
       before do
-        allow(Vagrant::Util::Platform).to receive(:windows?).and_return(true)
+        allow(subject).to receive(:load_net_conf).and_return(net_conf)
       end
 
-      it "should not error" do
+      it "should load net configuration" do
+        expect(subject).to receive(:load_net_conf).and_return(net_conf)
         subject.validate_hostonly_ip!(address, driver)
       end
 
-      it "should not attempt to load network configuration" do
-        expect(subject).not_to receive(:load_net_conf)
-        subject.validate_hostonly_ip!(address, driver)
+      context "when address is within ranges" do
+        it "should not error" do
+          subject.validate_hostonly_ip!(address, driver)
+        end
+      end
+
+      context "when address is not found within ranges" do
+        let(:net_conf) { [IPAddr.new("127.0.0.1/20")] }
+
+        it "should raise an error" do
+          expect {
+            subject.validate_hostonly_ip!(address, driver)
+          }.to raise_error(Vagrant::Errors::VirtualBoxInvalidHostSubnet)
+        end
+      end
+
+      context "when virtualbox version does not restrict range" do
+        let(:vbox_version) { "6.1.20" }
+
+        it "should not error" do
+          subject.validate_hostonly_ip!(address, driver)
+        end
+
+        it "should not attempt to load network configuration" do
+          expect(subject).not_to receive(:load_net_conf)
+          subject.validate_hostonly_ip!(address, driver)
+        end
+      end
+
+      context "when platform is windows" do
+        before do
+          allow(Vagrant::Util::Platform).to receive(:windows?).and_return(true)
+        end
+
+        it "should not error" do
+          subject.validate_hostonly_ip!(address, driver)
+        end
+
+        it "should not attempt to load network configuration" do
+          expect(subject).not_to receive(:load_net_conf)
+          subject.validate_hostonly_ip!(address, driver)
+        end
+      end
+    end
+
+    context "when configuration file does not exist" do
+      before do
+        allow(File).to receive(:exist?).with(described_class.const_get(:VBOX_NET_CONF)).and_return(false)
+      end
+
+      context "when ipv4 address is within range" do
+        let(:address) { "192.168.59.120" }
+
+        it "should not error" do
+          subject.validate_hostonly_ip!(address, driver)
+        end
+      end
+
+      context "when ipv4 address is not within range" do
+        let(:address) { "192.168.33.22" }
+
+        it "should raise an error" do
+          expect {
+            subject.validate_hostonly_ip!(address, driver)
+          }.to raise_error(Vagrant::Errors::VirtualBoxInvalidHostSubnet)
+        end
+      end
+
+      context "when ipv6 address is within range" do
+        let(:address) { "fe80:77:43:99:974:222:115:20" }
+
+        it "should not error" do
+          subject.validate_hostonly_ip!(address, driver)
+        end
+      end
+
+      context "when ipv6 address not within range" do
+        let(:address) { "33:77:43:99:974:222:115:20" }
+
+        it "should raise an error" do
+          expect {
+            subject.validate_hostonly_ip!(address, driver)
+          }.to raise_error(Vagrant::Errors::VirtualBoxInvalidHostSubnet)
+        end
       end
     end
   end
@@ -231,10 +349,10 @@ describe VagrantPlugins::ProviderVirtualBox::Action::Network do
 
     subject.call(env)
 
-    expect(driver).to have_received(:create_host_only_network).with({
+    expect(driver).to have_received(:create_host_only_network).with(hash_including({
       adapter_ip: interface_ip,
       netmask: 64,
-    })
+    }))
 
     expect(guest).to have_received(:capability).with(:configure_networks, [{
       type: :static6,
@@ -308,10 +426,10 @@ describe VagrantPlugins::ProviderVirtualBox::Action::Network do
 
       subject.call(env)
 
-      expect(driver).to have_received(:create_host_only_network).with({
+      expect(driver).to have_received(:create_host_only_network).with(hash_including({
         adapter_ip: '192.168.56.1',
         netmask: '255.255.255.0',
-      })
+      }))
 
       expect(driver).to have_received(:create_dhcp_server).with('vboxnet0', {
         adapter_ip: "192.168.56.1",
@@ -398,6 +516,33 @@ describe VagrantPlugins::ProviderVirtualBox::Action::Network do
         machine.config.vm.network 'private_network', **args
         expect { subject.call(env) }.
           to raise_error(Vagrant::Errors::NetworkAddressInvalid)
+      end
+    end
+  end
+
+  context "without type set" do
+    before { allow(subject).to receive(:hostonly_adapter).and_return({}) }
+
+    [
+      { ip: "192.168.63.5" },
+      { ip: "192.168.63.5", netmask: "255.255.255.0" },
+      { ip: "dead:beef::100" },
+      { ip: "dead:beef::100", netmask: 96 },
+    ].each do |args|
+      it "sets the type automatically" do
+        machine.config.vm.network "private_network", **args
+        expect(subject).to receive(:hostonly_config) do |config|
+          expect(config).to have_key(:type)
+          addr = IPAddr.new(args[:ip])
+          if addr.ipv4?
+            expect(config[:type]).to eq(:static)
+          else
+            expect(config[:type]).to eq(:static6)
+          end
+          config
+        end
+        subject.call(env)
+
       end
     end
   end

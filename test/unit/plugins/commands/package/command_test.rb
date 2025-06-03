@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../base"
 require_relative "../../../../../plugins/commands/package/command"
 
@@ -64,7 +67,7 @@ describe VagrantPlugins::CommandPackage::Command do
 
         it "packages default machine inside specified folder" do
           expect(package_command).to receive(:package_vm).with(
-            a_machine_named('default'), :output => "package-output-folder/default"
+            a_machine_named('default'), { output: "package-output-folder/default" }
           )
           package_command.execute
         end
@@ -96,7 +99,7 @@ describe VagrantPlugins::CommandPackage::Command do
         let(:argv){ ['--base', 'machine-id'] }
 
         it "packages vm defined within virtualbox" do
-          expect(package_command).to receive(:package_base).with(:base => 'machine-id')
+          expect(package_command).to receive(:package_base).with({ base: 'machine-id' })
           package_command.execute
         end
 

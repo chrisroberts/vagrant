@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module GuestRedHat
     module Cap
@@ -7,8 +10,10 @@ module VagrantPlugins
             if command -v dnf; then
               if `dnf info -q libnfs-utils > /dev/null 2>&1` ; then
                 dnf -y install nfs-utils libnfs-utils portmap
-              else
+              elif `dnf info -q nfs-utils-lib > /dev/null 2>&1` ; then
                 dnf -y install nfs-utils nfs-utils-lib portmap
+              else
+                dnf -y install nfs-utils portmap
               fi
             else
               yum -y install nfs-utils nfs-utils-lib portmap

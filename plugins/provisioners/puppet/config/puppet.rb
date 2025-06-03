@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module Puppet
     module Config
@@ -80,6 +83,7 @@ module VagrantPlugins
             @manifests_path[0] = @manifests_path[0].to_sym
             @environment_path = nil
             @manifest_file  = "default.pp" if @manifest_file == UNSET_VALUE
+            @environment  = "" if @environment == UNSET_VALUE
           else
             @environment_path[0] = @environment_path[0].to_sym
             @environment  = "production" if @environment == UNSET_VALUE

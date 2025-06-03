@@ -1,9 +1,12 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../base", __FILE__)
 
 require "pathname"
 require 'tempfile'
 
-describe Vagrant::BoxCollection, :skip_windows do
+describe Vagrant::BoxCollection, :skip_windows, :bsdtar do
   include_context "unit"
 
   let(:box_class)   { Vagrant::Box }
@@ -33,11 +36,11 @@ describe Vagrant::BoxCollection, :skip_windows do
       # Verify some output
       results = subject.all
       expect(results.length).to eq(5)
-      expect(results.include?(["foo", "1.0", :virtualbox])).to be
-      expect(results.include?(["foo", "1.0", :vmware])).to be
-      expect(results.include?(["bar", "0", :ec2])).to be
-      expect(results.include?(["foo/bar", "1.0", :virtualbox])).to be
-      expect(results.include?(["foo:colon", "1.0", :virtualbox])).to be
+      expect(results).to include(["foo", "1.0", :virtualbox, nil])
+      expect(results).to include(["foo", "1.0", :vmware, nil])
+      expect(results).to include(["bar", "0", :ec2, nil])
+      expect(results).to include(["foo/bar", "1.0", :virtualbox, nil])
+      expect(results).to include(["foo:colon", "1.0", :virtualbox, nil])
     end
 
     it "should return the boxes and their providers even if box has wrong version" do
@@ -54,11 +57,11 @@ describe Vagrant::BoxCollection, :skip_windows do
       # Verify some output
       results = subject.all
       expect(results.length).to eq(4)
-      expect(results.include?(["foo", "1.0", :virtualbox])).not_to be
-      expect(results.include?(["foo", "1.0", :vmware])).to be
-      expect(results.include?(["bar", "0", :ec2])).to be
-      expect(results.include?(["foo/bar", "1.0", :virtualbox])).to be
-      expect(results.include?(["foo:colon", "1.0", :virtualbox])).to be
+      expect(results).not_to include(["foo", "1.0", :virtualbox, nil])
+      expect(results).to include(["foo", "1.0", :vmware, nil])
+      expect(results).to include(["bar", "0", :ec2, nil])
+      expect(results).to include(["foo/bar", "1.0", :virtualbox, nil])
+      expect(results).to include(["foo:colon", "1.0", :virtualbox, nil])
     end
 
     it 'does not raise an exception when a file appears in the boxes dir' do
@@ -106,6 +109,17 @@ describe Vagrant::BoxCollection, :skip_windows do
             end
           end
         end.not_to raise_error
+      end
+
+      context "with architectures defined" do
+        before do
+          environment.box3("foo-VAGRANTSLASH-bar", "1.0", :virtualbox, architecture: :arm64)
+        end
+
+        it "should sort boxes by name" do
+          result = subject.all.map(&:first).uniq
+          expect(result).to eq(["bar", "foo", "foo/bar", "foo:colon"])
+        end
       end
 
       it "should sort boxes by version" do
@@ -172,7 +186,7 @@ describe Vagrant::BoxCollection, :skip_windows do
       # Make sure the results still exist
       results = subject.all
       expect(results.length).to eq(1)
-      expect(results.include?(["foo", "1.0", :vmware])).to be
+      expect(results).to include(["foo", "1.0", :vmware, nil])
     end
 
     it "doesn't remove the directory if a version exists" do
@@ -192,11 +206,16 @@ describe Vagrant::BoxCollection, :skip_windows do
       # Make sure the results still exist
       results = subject.all
       expect(results.length).to eq(1)
-      expect(results.include?(["foo", "1.0", :virtualbox])).to be
+      expect(results).to include(["foo", "1.0", :virtualbox, nil])
     end
   end
 
   describe "#find" do
+    it "fails with custom error on invalid version" do
+      expect { subject.find("foo", :i_dont_exist, "v1.2.2") }.
+        to raise_error(Vagrant::Errors::BoxVersionInvalid)
+    end
+
     it "returns nil if the box does not exist" do
       expect(subject.find("foo", :i_dont_exist, ">= 0")).to be_nil
     end

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/commands/ssh_config/command")
@@ -56,6 +59,8 @@ Host #{machine.name}
   IdentityFile /home/vagrant/.private/keys.key
   IdentitiesOnly yes
   LogLevel FATAL
+  PubkeyAcceptedKeyTypes +ssh-rsa
+  HostKeyAlgorithms +ssh-rsa
       SSHCONFIG
     end
 
@@ -178,5 +183,31 @@ Host #{machine.name}
 
       expect(output).to include("Include /custom/ssh/config")
     end
+
+    it "includes enabling ssh-rsa key types and host algorithms" do
+      output = ""
+      allow(subject).to receive(:safe_puts) do |data|
+        output += data if data
+      end
+
+      subject.execute
+
+      expect(output).to include("PubkeyAcceptedKeyTypes +ssh-rsa")
+      expect(output).to include("HostKeyAlgorithms +ssh-rsa")
+    end
+
+    it "does not enable ssh-rsa key types and host algorithms when disabled" do
+      allow(machine).to receive(:ssh_info) { ssh_info.merge(disable_deprecated_algorithms: true) }
+      output = ""
+      allow(subject).to receive(:safe_puts) do |data|
+        output += data if data
+      end
+
+      subject.execute
+
+      expect(output).not_to include("PubkeyAcceptedKeyTypes +ssh-rsa")
+      expect(output).not_to include("HostKeyAlgorithms +ssh-rsa")
+    end
+
   end
 end

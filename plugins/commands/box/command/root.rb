@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'optparse'
 
 module VagrantPlugins
@@ -81,7 +84,6 @@ module VagrantPlugins
             keys.sort.each do |key|
               opts.separator "     #{key}"
             end
-
             opts.separator ""
             opts.separator "For help on any individual subcommand run `vagrant box <subcommand> -h`"
           end

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../base", __FILE__)
 
 require "vagrant/util/platform"
@@ -7,6 +10,86 @@ describe Vagrant::Util::Platform do
   before(:all) { described_class.reset! }
   after { described_class.reset! }
   subject { described_class }
+
+  describe "#architecture" do
+    let(:cpu_string) { "unknown" }
+
+    before do
+      allow(RbConfig::CONFIG).
+        to receive(:[]).with("target_cpu").
+             and_return(cpu_string)
+    end
+
+    context "when cpu is x86_64" do
+      let(:cpu_string) { "x86_64" }
+
+      it "should be mapped to amd64" do
+        expect(described_class.architecture).to eq("amd64")
+      end
+    end
+
+    context "when cpu is x64" do
+      let(:cpu_string) { "x64" }
+
+      it "should be mapped to amd64" do
+        expect(described_class.architecture).to eq("amd64")
+      end
+    end
+
+    context "when cpu is i386" do
+      let(:cpu_string) { "i386" }
+
+      it "should be mapped to i386" do
+        expect(described_class.architecture).to eq("i386")
+      end
+    end
+
+    context "when cpu is 386" do
+      let(:cpu_string) { "386" }
+
+      it "should be mapped to 386" do
+        expect(described_class.architecture).to eq("i386")
+      end
+    end
+
+    context "when cpu is arm64" do
+      let(:cpu_string) { "arm64" }
+
+      it "should be arm64" do
+        expect(described_class.architecture).to eq("arm64")
+      end
+    end
+
+    context "when cpu is aarch64" do
+      let(:cpu_string) { "aarch64" }
+
+      it "should be mapped to arm64" do
+        expect(described_class.architecture).to eq("arm64")
+      end
+    end
+
+    context "when cpu is unmapped value" do
+      let(:cpu_string) { "custom-cpu" }
+
+      it "should be returned as-is" do
+        expect(described_class.architecture).to eq(cpu_string)
+      end
+    end
+
+    context "when environment variable override is set" do
+      let(:host_override) { "custom-host-override" }
+
+      before do
+        allow(ENV).to receive(:[]).
+                        with("VAGRANT_HOST_ARCHITECTURE").
+                        and_return(host_override)
+      end
+
+      it "should return the custom override" do
+        expect(subject.architecture).to eq(host_override)
+      end
+    end
+  end
 
   describe "#cygwin_path" do
     let(:path) { "C:\\msys2\\home\\vagrant" }

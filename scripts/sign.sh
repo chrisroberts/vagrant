@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 set -e
 
 # Get the parent directory of where this script is.
@@ -19,8 +22,8 @@ fi
 # Make the checksums
 pushd ./pkg/dist
 shasum -a256 * > ./vagrant_${VERSION}_SHA256SUMS
-if [ -z $NOSIGN ]; then
-  echo "==> Signing..."
-  gpg --default-key 348FFC4C --detach-sig ./vagrant_${VERSION}_SHA256SUMS
-fi
+# if [ -z $NOSIGN ]; then
+#   echo "==> Signing..."
+#   gpg --default-key 348FFC4C --detach-sig ./vagrant_${VERSION}_SHA256SUMS
+# fi
 popd

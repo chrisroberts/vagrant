@@ -1,5 +1,7 @@
-require "thread"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
+require "thread"
 require "log4r"
 
 module VagrantPlugins
@@ -16,8 +18,10 @@ module VagrantPlugins
 
           wait = true
           if !machine.provider_config.remains_running
+            @logger.debug("remains_running is false")
             wait = false
-          elsif machine.provider.state.id == :running
+          elsif machine.state.id == :running
+            @logger.debug("container is already running")
             wait = false
           end
 
@@ -28,7 +32,7 @@ module VagrantPlugins
 
           # First, make sure it leaves the stopped state if its supposed to.
           after = sleeper(5)
-          while machine.provider.state.id == :stopped
+          while machine.state.id == :stopped
             if after[:done]
               raise Errors::StateStopped
             end
@@ -38,7 +42,7 @@ module VagrantPlugins
           # Then, wait for it to become running
           after = sleeper(30)
           while true
-            state = machine.provider.state
+            state = machine.state
             break if state.id == :running
             @logger.info("Waiting for container to run. State: #{state.id}")
 

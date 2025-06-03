@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module Vagrant
   module Util
     class CurlHelper
@@ -6,7 +9,8 @@ module Vagrant
       SILENCED_HOSTS = [
         "vagrantcloud-files-production.s3-accelerate.amazonaws.com".freeze,
         "vagrantcloud.com".freeze,
-        "vagrantup.com".freeze
+        "vagrantup.com".freeze,
+        "cloud.hashicorp.com".freeze,
       ].freeze
 
       def self.capture_output_proc(logger, ui, source=nil)

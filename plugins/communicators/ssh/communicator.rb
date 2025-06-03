@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'etc'
 require 'logger'
 require 'pathname'
@@ -110,6 +113,8 @@ module VagrantPlugins
               raise
             rescue Vagrant::Errors::SSHKeyTypeNotSupported
               raise
+            rescue Vagrant::Errors::SSHKeyTypeNotSupportedByServer
+              raise
             rescue Vagrant::Errors::SSHKeyBadOwner
               raise
             rescue Vagrant::Errors::SSHKeyBadPermissions
@@ -185,7 +190,60 @@ module VagrantPlugins
             @machine.guest.capability?(:remove_public_key)
           raise Vagrant::Errors::SSHInsertKeyUnsupported if !cap
 
-          _pub, priv, openssh = Vagrant::Util::Keypair.create
+          key_type = machine_config_ssh.key_type
+
+          begin
+            # If the key type is set to `:auto` check for supported type. Otherwise
+            # ensure that the key type is supported by the guest
+            if key_type == :auto
+              key_type = catch(:key_type) do
+                begin
+                  Vagrant::Util::Keypair::PREFER_KEY_TYPES.each do |type_name, type|
+                    throw :key_type, type if supports_key_type?(type_name)
+                  end
+                  nil
+                rescue => err
+                  @logger.warn("Failed to check key types server supports: #{err}")
+                  nil
+                end
+              end
+
+              @logger.debug("Detected key type for new private key: #{key_type}")
+
+              # If no key type was discovered, default to rsa
+              if key_type.nil?
+                @logger.debug("Failed to detect supported key type in: #{supported_key_types.join(", ")}")
+                available_types = supported_key_types.map { |t|
+                  next if !Vagrant::Util::Keypair::PREFER_KEY_TYPES.key?(t)
+                  "#{t} (#{Vagrant::Util::Keypair::PREFER_KEY_TYPES[t]})"
+                }.compact.join(", ")
+
+                raise Vagrant::Errors::SSHKeyTypeNotSupportedByServer,
+                      requested_key_type: ":auto",
+                      available_key_types: available_types
+              end
+            else
+              type_name = Vagrant::Util::Keypair::PREFER_KEY_TYPES.key(key_type)
+              if !supports_key_type?(type_name)
+                available_types = supported_key_types.map { |t|
+                  next if !Vagrant::Util::Keypair::PREFER_KEY_TYPES.key?(t)
+                  "#{t} (#{Vagrant::Util::Keypair::PREFER_KEY_TYPES[t]})"
+                }.compact.join(", ")
+                raise Vagrant::Errors::SSHKeyTypeNotSupportedByServer,
+                      requested_key_type: "#{type_name} (#{key_type})",
+                      available_key_types: available_types
+              end
+            end
+          rescue ServerDataError
+            @logger.warn("failed to load server data for key type check")
+            if key_type.nil? || key_type == :auto
+              @logger.warn("defaulting key type to :rsa due to failed server data loading")
+              key_type = :rsa
+            end
+          end
+
+          @logger.info("Creating new ssh keypair (type: #{key_type.inspect})")
+          _pub, priv, openssh = Vagrant::Util::Keypair.create(type: key_type)
 
           @logger.info("Inserting key to avoid password: #{openssh}")
           @machine.ui.detail("\n"+I18n.t("vagrant.inserting_random_key"))
@@ -193,7 +251,7 @@ module VagrantPlugins
 
           # Write out the private key in the data dir so that the
           # machine automatically picks it up.
-          @machine.data_dir.join("private_key").open("w+") do |f|
+          @machine.data_dir.join("private_key").open("wb+") do |f|
             f.write(priv)
           end
 
@@ -400,7 +458,8 @@ module VagrantPlugins
         raise Vagrant::Errors::SSHNotReady if ssh_info.nil?
 
         # Default some options
-        opts[:retries] = 5 if !opts.key?(:retries)
+        opts[:retries] = ssh_info[:connect_retries] if !opts.key?(:retries)
+        opts[:retry_delay] = ssh_info[:connect_retry_delay] if !opts.key?(:retry_delay)
 
         # Set some valid auth methods. We disable the auth methods that
         # we're not using if we don't have the right auth info.
@@ -429,7 +488,7 @@ module VagrantPlugins
           timeout = 60
 
           @logger.info("Attempting SSH connection...")
-          connection = retryable(tries: opts[:retries], on: SSH_RETRY_EXCEPTIONS) do
+          connection = retryable(tries: opts[:retries], on: SSH_RETRY_EXCEPTIONS, sleep: opts[:retry_delay]) do
             Timeout.timeout(timeout) do
               begin
                 # This logger will get the Net-SSH log data for us.
@@ -456,6 +515,11 @@ module VagrantPlugins
                   connect_opts[:remote_user] = ssh_info[:remote_user]
                 end
 
+                if @machine.config.ssh.keep_alive
+                  connect_opts[:keepalive] = true
+                  connect_opts[:keepalive_interval] = 5
+                end
+                
                 @logger.info("Attempting to connect to SSH...")
                 @logger.info("  - Host: #{ssh_info[:host]}")
                 @logger.info("  - Port: #{ssh_info[:port]}")
@@ -464,7 +528,7 @@ module VagrantPlugins
                 @logger.info("  - Key Path: #{ssh_info[:private_key_path]}")
                 @logger.debug("  - connect_opts: #{connect_opts}")
 
-                Net::SSH.start(ssh_info[:host], ssh_info[:username], connect_opts)
+                Net::SSH.start(ssh_info[:host], ssh_info[:username], **connect_opts)
               ensure
                 # Make sure we output the connection log
                 @logger.debug("== Net-SSH connection debug-level log START ==")
@@ -476,7 +540,7 @@ module VagrantPlugins
         rescue Errno::EACCES
           # This happens on connect() for unknown reasons yet...
           raise Vagrant::Errors::SSHConnectEACCES
-        rescue Errno::ETIMEDOUT, Timeout::Error
+        rescue Errno::ETIMEDOUT, Timeout::Error, IO::TimeoutError
           # This happens if we continued to timeout when attempting to connect.
           raise Vagrant::Errors::SSHConnectionTimeout
         rescue Net::SSH::AuthenticationFailed
@@ -645,7 +709,7 @@ module VagrantPlugins
               if auth_socket != ""
                 # Make sure we only read the last line which should be
                 # the $SSH_AUTH_SOCK env var we printed.
-                auth_socket = auth_socket.split("\n").last.chomp
+                auth_socket = auth_socket.split("\n").last.to_s.chomp
               end
 
               if auth_socket == ""
@@ -683,21 +747,6 @@ module VagrantPlugins
         end
 
         begin
-          keep_alive = nil
-
-          if machine_config_ssh.keep_alive
-            # Begin sending keep-alive packets while we wait for the script
-            # to complete. This avoids connections closing on long-running
-            # scripts.
-            keep_alive = Thread.new do
-              loop do
-                sleep 5
-                @logger.debug("Sending SSH keep-alive...")
-                connection.send_global_request("keep-alive@openssh.com")
-              end
-            end
-          end
-
           # Wait for the channel to complete
           begin
             channel.wait
@@ -711,9 +760,6 @@ module VagrantPlugins
           rescue Net::SSH::Disconnect
             raise Vagrant::Errors::SSHDisconnected
           end
-        ensure
-          # Kill the keep-alive thread
-          keep_alive.kill if keep_alive
         end
 
         # If we're in a PTY, we now finally parse the output
@@ -761,8 +807,9 @@ module VagrantPlugins
       def insecure_key?(path)
         return false if !path
         return false if !File.file?(path)
-        source_path = Vagrant.source_root.join("keys", "vagrant")
-        return File.read(path).chomp == source_path.read.chomp
+        Dir.glob(Vagrant.source_root.join("keys", "vagrant.key.*")).any? do |source_path|
+          File.read(path).chomp == File.read(source_path).chomp
+        end
       end
 
       def create_remote_directory(dir)
@@ -771,6 +818,80 @@ module VagrantPlugins
 
       def machine_config_ssh
         @machine.config.ssh
+      end
+
+      protected
+
+      class ServerDataError < StandardError; end
+
+      # Check if server supports given key type
+      #
+      # @param [String, Symbol] type Key type
+      # @return [Boolean]
+      # @note This does not use a stable API and may be subject
+      # to unexpected breakage on net-ssh updates
+      def supports_key_type?(type)
+        if @connection.nil?
+          raise Vagrant::Errors::SSHNotReady
+        end
+
+        supported_key_types.include?(type.to_s)
+      end
+
+      def supported_key_types
+        return @supported_key_types if @supported_key_types
+
+        if @connection.nil?
+          raise Vagrant::Errors::SSHNotReady
+        end
+
+        list = ""
+        result = sudo("sshd -T | grep key", {error_check: false}) do |type, data|
+          list << data
+        end
+
+        # If the command failed, attempt to extract some supported
+        # key information from within net-ssh
+        if result != 0
+          server_data = @connection.
+            transport&.
+            algorithms&.
+            instance_variable_get(:@server_data)
+          if server_data.nil?
+            @logger.warn("No server data available for key type support check")
+            raise ServerDataError, "no data available"
+          end
+          if !server_data.is_a?(Hash)
+            @logger.warn("Server data is not expected type (expecting Hash, got #{server_data.class})")
+            raise ServerDataError, "unexpected type encountered (expecting Hash, got #{server_data.class})"
+          end
+
+          @logger.debug("server supported key type list (extracted from connection server info using host key): #{server_data[:host_key]}")
+          return @supported_key_types = server_data[:host_key]
+        end
+
+        # Convert the options into a Hash for easy access
+        opts = Hash[*list.split("\n").map{|line| line.split(" ", 2)}.flatten]
+
+        # Define the option names to check for in preferred order
+        # NOTE: pubkeyacceptedkeytypes has been renamed to pubkeyacceptedalgorithms
+        #   ref: https://github.com/openssh/openssh-portable/commit/ee9c0da8035b3168e8e57c1dedc2d1b0daf00eec
+        ["pubkeyacceptedalgorithms", "pubkeyacceptedkeytypes", "hostkeyalgorithms"].each do |opt_name|
+          next if !opts.key?(opt_name)
+
+          @supported_key_types = opts[opt_name].split(",")
+          @logger.debug("server supported key type list (using #{opt_name}): #{@supported_key_types}")
+
+          return @supported_key_types
+        end
+
+        # Still here means unable to determine key types
+        # so log what information was returned and toss
+        # and error
+        @logger.warn("failed to determine supported key types from remote inspection")
+        @logger.debug("data returned for supported key types remote inspection: #{list.inspect}")
+
+        raise ServerDataError, "no data available"
       end
     end
   end

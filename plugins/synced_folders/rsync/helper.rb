@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "fileutils"
 require "ipaddr"
 require "shellwords"
@@ -27,18 +30,15 @@ module VagrantPlugins
 
         if exclude.start_with?("/")
           start_anchor = true
-          exclude      = exclude[1..-1]
         end
 
-        exclude = "#{exclude}/" if !exclude.end_with?("/")
-        exclude = "^#{exclude}"
-        exclude += ".*" if !start_anchor
+        exclude = "#{exclude}/" if !exclude.end_with?("/") if start_anchor
+        exclude = "^#{exclude}" if start_anchor
+        exclude += ".*" if (!start_anchor && !exclude.end_with?("*"))
 
         # This is not an ideal solution, but it's a start. We can improve and
         # keep unit tests passing in the future.
         exclude = exclude.gsub("**", "|||GLOBAL|||")
-        exclude = exclude.gsub("*", "|||PATH|||")
-        exclude = exclude.gsub("|||PATH|||", "[^/]*")
         exclude = exclude.gsub("|||GLOBAL|||", ".*")
 
         Regexp.new(exclude)
@@ -108,6 +108,7 @@ module VagrantPlugins
           ssh_config_file,
           control_options,
         ]
+        rsh += ssh_info[:extra_args] if ssh_info[:extra_args]
 
         # Solaris/OpenSolaris/Illumos uses SunSSH which doesn't support the
         # IdentitiesOnly option. Also, we don't enable it if keys_only is false

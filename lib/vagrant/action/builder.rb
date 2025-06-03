@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module Vagrant
   module Action
     # Action builder which provides a nice DSL for building up
@@ -28,6 +31,36 @@ module Vagrant
       # @return [Array]
       attr_reader :stack
 
+      # Action Hooks allow plugin authors to inject their code wherever they
+      # want in the action stack. The methods they get are:
+      #
+      #   - prepend/append, which puts their middleware at the beginning or end
+      #     of the whole stack
+      #   - before/after, which attaches their middleware to an existing item
+      #     in the stack
+      #
+      # Applying Action Hooks properly gets tricky because the action stack
+      # becomes deeply nested with things like Action::Builtin::Call and
+      # Builder#use(other_builder). The way it breaks down is:
+      #
+      #  - prepend/append hooks should be applied only at the top level stack,
+      #    so they run once at the beginning or end
+      #  - before/after hooks should be applied in every sub-builder, because
+      #    they will only actually attach if they find their target sibling
+      #
+      # We achieve this behavior by tracking if we are a "primary" Builder, and
+      # only running prepend/append operations when we are.
+      #
+      # Note this difference only applies to action_hooks registered with
+      # machine action names and not action_hooks which reference middleware
+      # directly, which only support prepend/append and are handled in
+      # #apply_dynamic_updates.
+      #
+      # @return [Boolean] true if this is a primary / top-level Builder
+      # @see Vagrant::Action::PrimaryRunner
+      # @see Vagrant::Action::Hook
+      attr_accessor :primary
+
       # This is a shortcut for a middleware sequence with only one item
       # in it. For a description of the arguments and the documentation, please
       # see {#use} instead.
@@ -39,6 +72,7 @@ module Vagrant
 
       def initialize
         @stack = []
+        @logger = Log4r::Logger.new("vagrant::action::builder")
       end
 
       # Implement a custom copy that copies the stack variable over so that
@@ -196,9 +230,7 @@ module Vagrant
       # @param [Hash] env Call environment
       # @return [Builder] self
       def apply_dynamic_updates(env)
-        if Vagrant::Util::Experimental.feature_enabled?("typed_triggers")
-          triggers = env[:triggers]
-        end
+        triggers = env[:triggers]
 
         # Use a Hook as a convenient interface for injecting
         # any applicable trigger actions within the stack
@@ -265,7 +297,7 @@ module Vagrant
         machine_name = env[:machine].name if env[:machine]
 
         # Start with loading any hook triggers if applicable
-        if Vagrant::Util::Experimental.feature_enabled?("typed_triggers") && env[:triggers]
+        if env[:triggers]
           if !env[:triggers].find(env[:action_name], :before, machine_name, :hook).empty?
             hook.prepend(Vagrant::Action::Builtin::Trigger,
               env[:action_name], env[:triggers], :before, :hook)
@@ -311,7 +343,11 @@ module Vagrant
         return self if hook.empty?
 
         # Apply all the hooks to the new builder instance
-        hook.apply(self)
+        hook.apply(self, {
+          # Only primary builders run prepend/append, otherwise nested builders
+          # would duplicate hooks. See explanation at self#primary.
+          no_prepend_or_append: !primary,
+        })
 
         self
       end

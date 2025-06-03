@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../../../../base"
 require_relative "../shared/pip_ansible_install_examples"
 
@@ -23,6 +26,7 @@ describe VagrantPlugins::Ansible::Cap::Guest::Debian::AnsibleInstall do
   before do
     allow(machine).to receive(:communicate).and_return(communicator)
     allow(communicator).to receive(:execute).and_return(true)
+    allow(communicator).to receive(:test).and_return(false)
   end
 
   describe "#ansible_install" do

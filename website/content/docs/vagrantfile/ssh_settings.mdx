@@ -21,11 +21,21 @@ defaults are typically fine, but you can fine tune whatever you would like.
   compression setting when ssh'ing into a machine. If this is not set, it will
   default to `true` and `Compression=yes` will be enabled with ssh.
 
+- `config.ssh.connect_retries` (integer) - Number of times to attempt to establish an
+  an SSH connection to the guest. Defaults to `5`.
+
+- `config.ssh.connect_retry_delay` (numeric) - Number of seconds to wait between
+  retries when attempting to establish an SSH connection to the guest. Defaults to `2`.
+
 - `config.ssh.connect_timeout` (integer) - Number of seconds to wait for establishing
   an SSH connection to the guest. Defaults to `15`.
 
 - `config.ssh.config` (string) - Path to a custom ssh_config file to use for configuring
   the SSH connections.
+
+- `config.ssh.disable_deprecated_algorithms` (boolean) - If `true`, this setting will
+  not configure the SSH client to allow connecting to a host using ssh-rsa key types
+  and host key algorithms. Defaults to false.
 
 - `config.ssh.dsa_authentication` (boolean) - If `false`, this setting will not include
   `DSAAuthentication` when ssh'ing into a machine. If this is not set, it will
@@ -44,7 +54,7 @@ defaults are typically fine, but you can fine tune whatever you would like.
 
 - `config.ssh.extra_args` (array of strings) - This settings value is passed directly
   into the ssh executable. This allows you to pass any arbitrary commands to do things such
-  as reverse tunneling down into the ssh program. These options can either be
+  as reverse tunneling down into the SSH program. These options can either be
   single flags set as strings such as `"-6"` for IPV6 or an array of arguments
   such as `["-L", "8008:localhost:80"]` for enabling a tunnel from host port 8008
   to port 80 on guest. **Note:** This option only affects the `ssh` command or instances
@@ -85,6 +95,12 @@ defaults are typically fine, but you can fine tune whatever you would like.
 
 - `config.ssh.keys_only` (boolean) - Only use Vagrant-provided SSH private keys (do not use
   any keys stored in ssh-agent). The default value is `true`.
+
+- `config.ssh.key_type` (string, symbol) - The SSH key type that should be used when generating
+  a new key to replace the default insecure key. Supported values are: `:ed25519`, `:ecdsa256`,
+  `:ecdsa384`, `:ecdsa521`, `:rsa`, and `:auto`. When the value is set to `:auto`, Vagrant will
+  automatically pick a type based on what is supported by the guest SSH server. The default
+  value is `:auto`.
 
 - `config.ssh.paranoid` (boolean) - Perform strict host-key verification. The default value is
   `false`.

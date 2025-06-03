@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/commands/cloud/auth/middleware/add_downloader_authentication")
@@ -23,6 +26,7 @@ describe VagrantPlugins::CloudCommand::AddDownloaderAuthentication do
     allow(Vagrant).to receive(:server_url).and_return(server_url)
     stub_env("ATLAS_TOKEN" => nil)
     stub_env("VAGRANT_SERVER_ACCESS_TOKEN_BY_URL" => nil)
+    VagrantPlugins::CloudCommand::Client.class_variable_set(:@@client, nil)
   end
 
   describe "#call" do

@@ -1,4 +1,8 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "tempfile"
+require "securerandom"
 
 require_relative "../../../../lib/vagrant/util/template_renderer"
 
@@ -8,8 +12,27 @@ module VagrantPlugins
       class ConfigureNetworks
         include Vagrant::Util
         extend Vagrant::Util::GuestInspection::Linux
+        extend Vagrant::Util::GuestNetworks::Linux
 
         def self.configure_networks(machine, networks)
+          @logger = Log4r::Logger.new("vagrant::guest::redhat::configurenetworks")
+
+          # Start with the scripts directory to determine how to configure
+          network_scripts_dir = machine.guest.capability(:network_scripts_dir)
+          @logger.debug("guest network scripts directory: #{network_scripts_dir}")
+
+          # The legacy configuration will handle rhel/centos pre-10
+          # versions. The newer versions have a different path for
+          # network configuration files.
+          if network_scripts_dir.end_with?("network-scripts")
+            configure_networks_legacy(machine, networks)
+          else
+            # Recent versions use Network Manager
+            configure_network_manager(machine, networks)
+          end
+        end
+
+        def self.configure_networks_legacy(machine, networks)
           comm = machine.communicate
 
           network_scripts_dir = machine.guest.capability(:network_scripts_dir)

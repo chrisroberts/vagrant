@@ -1,7 +1,7 @@
 [
   {
     "title": "Overview",
-    "path": "index"
+    "path": ""
   },
   {
     "title": "Installation",
@@ -267,6 +267,10 @@
         "path": "boxes/format"
       },
       {
+        "title": "Box Repository",
+        "path": "boxes/box_repository"
+      },
+      {
         "title": "Box Info Format",
         "path": "boxes/info"
       }
@@ -474,7 +478,7 @@
         ]
       },
       {
-        "title": "VMWare",
+        "title": "VMware",
         "routes": [
           {
             "title": "Overview",
@@ -699,6 +703,19 @@
       {
         "title": "Packaging &amp; Distribution",
         "path": "plugins/packaging"
+      },
+      {
+        "title": "Go Plugins",
+        "routes": [
+          {
+            "title": "Overview",
+            "path": "plugins/go-plugins"
+          },
+          {
+            "title": "Guests",
+            "path": "plugins/go-plugins/guests"
+          }
+        ]
       }
     ]
   },
@@ -742,7 +759,12 @@
   },
   {
     "title": "Experimental",
-    "path": "experimental"
+    "routes": [
+      {
+        "title": "Feature Flags",
+        "path": "experimental"
+      }
+    ]
   },
   {
     "title": "Other",

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module Vagrant
   module Util
     autoload :ANSIEscapeCodeRemover,     'vagrant/util/ansi_escape_code_remover'
@@ -15,9 +18,13 @@ module Vagrant
     autoload :Experimental,              'vagrant/util/experimental'
     autoload :FileChecksum,              'vagrant/util/file_checksum'
     autoload :FileMode,                  'vagrant/util/file_mode'
+    autoload :FileMutex,                 'vagrant/util/file_mutex'
     autoload :GuestHosts,                'vagrant/util/guest_hosts'
     autoload :GuestInspection,           'vagrant/util/guest_inspection'
+    autoload :GuestNetworks,             'vagrant/util/guest_networks'
     autoload :HashWithIndifferentAccess, 'vagrant/util/hash_with_indifferent_access'
+    autoload :HCLogFormatter,            'vagrant/util/logging_formatter'
+    autoload :HCLogOutputter,            'vagrant/util/logging_formatter'
     autoload :InstallShellConfig,        'vagrant/util/install_cli_autocomplete'
     autoload :InstallZSHShellConfig,     'vagrant/util/install_cli_autocomplete'
     autoload :InstallBashShellConfig,    'vagrant/util/install_cli_autocomplete'
@@ -25,7 +32,7 @@ module Vagrant
     autoload :IO,                        'vagrant/util/io'
     autoload :IPV4Interfaces,            'vagrant/util/ipv4_interfaces'
     autoload :IsPortOpen,                'vagrant/util/is_port_open'
-    autoload :KeyPair,                   'vagrant/util/key_pair'
+    autoload :Keypair,                   'vagrant/util/keypair'
     autoload :LineBuffer,                'vagrant/util/line_buffer'
     autoload :LineEndingHelpers,         'vagrant/util/line_ending_helpers'
     autoload :LoggingFormatter,          'vagrant/util/logging_formatter'
@@ -35,7 +42,7 @@ module Vagrant
     autoload :Numeric,                   'vagrant/util/numeric'
     autoload :Platform,                  'vagrant/util/platform'
     autoload :Powershell,                'vagrant/util/powershell'
-    autoload :Presence,                   'vagrant/util/presence'
+    autoload :Presence,                  'vagrant/util/presence'
     autoload :Retryable,                 'vagrant/util/retryable'
     autoload :SafeChdir,                 'vagrant/util/safe_chdir'
     autoload :SafeEnv,                   'vagrant/util/safe_env'

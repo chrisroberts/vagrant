@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "pathname"
 require "tempfile"
 
@@ -111,11 +114,10 @@ module VagrantPlugins
               raise Vagrant::Errors::SSHNotReady if info.nil?
             end
 
+            comm.upload(path.to_s, upload_path)
             user = info[:username]
             comm.sudo("chown -R #{user} #{upload_path}",
                       error_check: false)
-
-            comm.upload(path.to_s, upload_path)
 
             if config.name
               @machine.ui.detail(I18n.t("vagrant.provisioners.shell.running",

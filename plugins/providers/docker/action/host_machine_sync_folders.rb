@@ -1,6 +1,8 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "digest/md5"
 require "securerandom"
-
 require "log4r"
 
 require "vagrant/action/builtin/mixin_synced_folders"

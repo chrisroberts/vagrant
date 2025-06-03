@@ -1,5 +1,7 @@
-require "thread"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
+require "thread"
 require "log4r"
 
 module Vagrant
@@ -67,6 +69,7 @@ module Vagrant
           box_download_checksum_type = machine.config.vm.box_download_checksum_type
           box_download_checksum = machine.config.vm.box_download_checksum
           box_download_location_trusted = machine.config.vm.box_download_location_trusted
+          box_download_disable_ssl_revoke_best_effort = machine.config.vm.box_download_disable_ssl_revoke_best_effort
           box_extra_download_options = machine.config.vm.box_extra_download_options
           box_formats = machine.provider_options[:box_format] ||
             machine.provider_name
@@ -83,6 +86,7 @@ module Vagrant
             env[:action_runner].run(Vagrant::Action.action_box_add, env.merge({
               box_name: machine.config.vm.box,
               box_url: machine.config.vm.box_url || machine.config.vm.box,
+              box_architecture: machine.config.vm.box_architecture,
               box_server_url: machine.config.vm.box_server_url,
               box_provider: box_formats,
               box_version: machine.config.vm.box_version,
@@ -93,6 +97,7 @@ module Vagrant
               box_checksum_type: box_download_checksum_type,
               box_checksum: box_download_checksum,
               box_download_location_trusted: box_download_location_trusted,
+              box_download_disable_ssl_revoke_best_effort: box_download_disable_ssl_revoke_best_effort,
               box_extra_download_options: box_extra_download_options,
             }))
           rescue Errors::BoxAlreadyExists

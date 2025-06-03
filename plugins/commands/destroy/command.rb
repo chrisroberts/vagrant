@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module VagrantPlugins
   module CommandDestroy
     class Command < Vagrant.plugin("2", :command)
@@ -57,6 +60,7 @@ module VagrantPlugins
 
         machines.each do |m|
           if init_states[m.name] != :not_created && m.state.id == init_states[m.name]
+            @logger.debug("state was not changed for '#{m.name}', marking as failed (state: #{m.state.id})")
             declined += 1
           end
         end

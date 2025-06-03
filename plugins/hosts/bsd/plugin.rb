@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "vagrant"
 
 module VagrantPlugins
@@ -32,6 +35,16 @@ module VagrantPlugins
       end
 
       host_capability("bsd", "nfs_restart_command") do
+        require_relative "cap/nfs"
+        Cap::NFS
+      end
+
+      host_capability("bsd", "nfs_update_command") do
+        require_relative "cap/nfs"
+        Cap::NFS
+      end
+
+      host_capability("bsd", "nfs_status_command") do
         require_relative "cap/nfs"
         Cap::NFS
       end

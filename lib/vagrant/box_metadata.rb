@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "json"
 
 module Vagrant
@@ -19,7 +22,7 @@ module Vagrant
     # IO.
     #
     # @param [IO] io An IO object to read the metadata from.
-    def initialize(io)
+    def initialize(io, **_)
       begin
         @raw = JSON.load(io)
       rescue JSON::ParserError => e
@@ -32,7 +35,7 @@ module Vagrant
       @description = @raw["description"]
       @version_map = (@raw["versions"] || []).map do |v|
         begin
-          [Gem::Version.new(v["version"]), v]
+          [Gem::Version.new(v["version"]), Version.new(v)]
         rescue ArgumentError
           raise Errors::BoxMetadataMalformedVersion,
             version: v["version"].to_s
@@ -46,6 +49,9 @@ module Vagrant
     #
     # @param [String] version The version to return, this can also
     #   be a constraint.
+    # @option [Symbol, Array<Symbol>] :provider Provider filter
+    # @option [Symbol] :architecture Architecture filter
+    #
     # @return [Version] The matching version or nil if a matching
     #   version was not found.
     def version(version, **opts)
@@ -55,11 +61,27 @@ module Vagrant
 
       providers = nil
       providers = Array(opts[:provider]).map(&:to_sym) if opts[:provider]
+      # NOTE: The :auto value is not expanded here since no architecture
+      #       value comparisons are being done within this method
+      architecture = opts.fetch(:architecture, :auto)
 
       @version_map.keys.sort.reverse.each do |v|
         next if !requirements.all? { |r| r.satisfied_by?(v) }
-        version = Version.new(@version_map[v])
-        next if (providers & version.providers).empty? if providers
+        version = @version_map[v]
+        valid_providers = version.providers
+
+        # If filtering by provider(s), apply filter
+        valid_providers &= providers if providers
+
+        # Skip if no valid providers are found
+        next if valid_providers.empty?
+
+        # Skip if no valid provider includes support
+        # the desired architecture
+        next if architecture && valid_providers.none? { |p|
+          version.provider(p, architecture)
+        }
+
         return version
       end
 
@@ -71,23 +93,54 @@ module Vagrant
     # latest version. Optionally filter versions by a matching
     # provider.
     #
+    # @option [Symbol, Array<Symbol>] :provider Provider filter
+    # @option [Symbol] :architecture Architecture filter
+    #
     # @return[Array<String>]
     def versions(**opts)
-      provider = nil
-      provider = opts[:provider].to_sym if opts[:provider]
+      architecture = opts[:architecture]
+      provider = Array(opts[:provider]).map(&:to_sym) if opts[:provider]
 
-      if provider
-        @version_map.select do |version, raw|
-          if raw["providers"]
-            raw["providers"].detect do |p|
-              p["name"].to_sym == provider
-            end
-          end
-        end.keys.sort.map(&:to_s)
-      else
-        @version_map.keys.sort.map(&:to_s)
+      # Return full version list if no filters provided
+      if provider.nil? && architecture.nil?
+        return @version_map.keys.sort.map(&:to_s)
       end
+
+      # If a specific provider is not provided, filter
+      # only on architecture
+      if provider.nil?
+        return @version_map.select { |_, version|
+          !version.providers(architecture).empty?
+        }.keys.sort.map(&:to_s)
+      end
+
+      @version_map.select { |_, version|
+        provider.any? { |pv| version.provider(pv, architecture) }
+      }.keys.sort.map(&:to_s)
     end
+
+    def compatible_version_update?(current_version, new_version, **opts) 
+      return false if Gem::Version.new(new_version) <= Gem::Version.new(current_version)
+
+      architecture = opts[:architecture]
+      provider = opts[:provider]
+      # If the specific provider isn't available, there is nothing further to check for compatibility
+      return true if provider.nil?
+
+      # If the current_provider isn't found in the metadata, it cannot be compared against. Default to allowing updates
+      current_provider  = version(current_version.to_s, provider: provider, architecture: architecture)&.provider(provider, architecture)
+      return true if current_provider.nil? 
+
+      # If the new provider isn't found, the new version isn't compatible
+      new_provider = version(new_version.to_s, provider: provider, architecture: architecture)&.provider(provider, architecture)
+      return false if new_provider.nil?
+
+      # Disallow updates from a known architecture to an unknown architecture, because it can not be verified, unless architecture is explicitly set to `nil`
+      return false if !architecture.nil? &&  new_provider.architecture == "unknown" && current_provider.architecture != "unknown"
+
+      # New version is compatible
+      return true
+    end 
 
     # Represents a single version within the metadata.
     class Version
@@ -96,30 +149,85 @@ module Vagrant
       # @return [String]
       attr_accessor :version
 
-      def initialize(raw=nil)
+      def initialize(raw=nil, **_)
         return if !raw
 
         @version = raw["version"]
-        @provider_map = (raw["providers"] || []).map do |p|
-          [p["name"].to_sym, p]
+        @providers = raw.fetch("providers", []).map do |data|
+          Provider.new(data)
         end
-        @provider_map = Hash[@provider_map]
+        @provider_map = @providers.group_by(&:name)
+        @provider_map = Util::HashWithIndifferentAccess.new(@provider_map)
       end
 
       # Returns a [Provider] for the given name, or nil if it isn't
       # supported by this version.
-      def provider(name)
-        p = @provider_map[name.to_sym]
-        return nil if !p
-        Provider.new(p)
+      def provider(name, architecture=nil)
+        name = name.to_sym
+        arch_name = architecture
+        arch_name = Util::Platform.architecture if arch_name == :auto
+        arch_name = arch_name.to_s if arch_name
+
+        # If the provider doesn't exist in the map, return immediately
+        return if !@provider_map.key?(name)
+
+        # If the arch_name value is set, filter based
+        # on architecture and return match if found. If
+        # no match is found and architecture wasn't automatically
+        # detected, return nil as an explicit match is
+        # being requested
+        if arch_name
+          match = @provider_map[name].detect do |p|
+            p.architecture == arch_name
+          end
+
+          return match if match || architecture != :auto
+        end
+
+        # If the passed architecture value was :auto and no explicit
+        # match for the architecture was found, check for a provider
+        # that is flagged as the default architecture, and has an
+        # architecture value of "unknown"
+        #
+        # NOTE: This preserves expected behavior with legacy boxes
+        if architecture == :auto
+          match = @provider_map[name].detect do |p|
+            p.architecture == "unknown" &&
+              p.default_architecture
+          end
+
+          return match if match
+        end
+
+        # If the architecture value is set to nil, then just return
+        # whatever is defined as the default architecture
+        if architecture.nil?
+          match = @provider_map[name].detect(&:default_architecture)
+
+          return match if match
+        end
+
+        # The metadata consumed may not include architecture information,
+        # in which case the match would just be the single provider
+        # defined within the provider map for the name
+        if @provider_map[name].size == 1 && !@provider_map[name].first.architecture_support?
+          return @provider_map[name].first
+        end
+
+        # Otherwise, there is no match
+        nil
       end
 
       # Returns the providers that are available for this version
       # of the box.
       #
       # @return [Array<Symbol>]
-      def providers
-        @provider_map.keys.map(&:to_sym)
+      def providers(architecture=nil)
+        return @provider_map.keys.map(&:to_sym) if architecture.nil?
+
+        @provider_map.keys.find_all { |k|
+          provider(k, architecture)
+        }.map(&:to_sym)
       end
     end
 
@@ -146,11 +254,27 @@ module Vagrant
       # @return [String]
       attr_accessor :checksum_type
 
-      def initialize(raw)
+      # The architecture of the box
+      #
+      # @return [String]
+      attr_accessor :architecture
+
+      # Marked as the default architecture
+      #
+      # @return [Boolean, NilClass]
+      attr_accessor :default_architecture
+
+      def initialize(raw, **_)
         @name = raw["name"]
         @url  = raw["url"]
         @checksum = raw["checksum"]
         @checksum_type = raw["checksum_type"]
+        @architecture = raw["architecture"]
+        @default_architecture = raw["default_architecture"]
+      end
+
+      def architecture_support?
+        !@default_architecture.nil?
       end
     end
   end

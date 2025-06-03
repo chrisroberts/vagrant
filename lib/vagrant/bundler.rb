@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "monitor"
 require "pathname"
 require "set"
@@ -258,7 +261,12 @@ module Vagrant
       if solution_file&.valid?
         @logger.debug("loading cached solution set")
         solution = solution_file.dependency_list.map do |dep|
-          spec = composed_set.find_all(dep).first
+          spec = composed_set.find_all(dep).select do |dep_spec|
+            next(true) unless Gem.loaded_specs.has_key?(dep_spec.name)
+
+            Gem.loaded_specs[dep_spec.name].version.eql?(dep_spec.version)
+          end.first
+
           if !spec
             @logger.warn("failed to locate specification for dependency - #{dep}")
             @logger.warn("invalidating solution file - #{solution_file}")
@@ -515,10 +523,20 @@ module Vagrant
       if Vagrant.strict_dependency_enforcement
         @logger.debug("Enabling strict dependency enforcement")
         plugin_deps += vagrant_internal_specs.map do |spec|
-          next if system_plugins.include?(spec.name)
-          # If this spec is for a default plugin included in
-          # the ruby stdlib, ignore it
-          next if spec.default_gem?
+          # NOTE: When working within bundler, skip any system plugins and
+          # default gems. However, when not within bundler (in the installer)
+          # include them as strict dependencies to prevent the resolver from
+          # attempting to create a solution with a newer version. The request
+          # set does allow for resolving conservatively but it can't be set
+          # from the public API (requires an instance variable set on the resolver
+          # instance) so strict dependencies are used instead.
+          if Vagrant.in_bundler?
+            next if system_plugins.include?(spec.name)
+            # # If this spec is for a default plugin included in
+            # # the ruby stdlib, ignore it
+            next if spec.default_gem?
+          end
+
           # If we are not running within the installer and
           # we are not within a bundler environment then we
           # only want activated specs
@@ -531,8 +549,10 @@ module Vagrant
         @logger.debug("Disabling strict dependency enforcement")
       end
 
-      @logger.debug("Dependency list for installation:\n - " \
-        "#{plugin_deps.map{|d| "#{d.name} #{d.requirement}"}.join("\n - ")}")
+      dep_list = plugin_deps.sort_by(&:name).map { |d|
+        "#{d.name} #{d.requirement}"
+      }.join("\n - ")
+      @logger.debug("Dependency list for installation:\n - #{dep_list}")
 
       all_sources = source_list.values.flatten.uniq
       default_sources = DEFAULT_GEM_SOURCES & all_sources
@@ -662,11 +682,11 @@ module Vagrant
       directories = [spec_dir]
       if Vagrant.in_bundler?
         Gem::Specification.find_all{true}.each do |spec|
-          list[spec.full_name] = spec
+          list[spec.name] = spec
         end
       else
         builtin_specs.each do |spec|
-          list[spec.full_name] = spec
+          list[spec.name] = spec
         end
       end
       if Vagrant.in_installer?
@@ -675,8 +695,8 @@ module Vagrant
         end
       end
       Gem::Specification.each_spec(directories) do |spec|
-        if !list[spec.full_name]
-          list[spec.full_name] = spec
+        if !list[spec.name] || list[spec.name].version < spec.version
+          list[spec.name] = spec
         end
       end
       list.values

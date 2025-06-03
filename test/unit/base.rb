@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "tmpdir"
 require "rubygems"
 
@@ -9,6 +12,9 @@ require "rspec/its"
 # classes to test.
 require "vagrant"
 require "vagrant/util/platform"
+
+# Include patches for fake ftp
+require "vagrant/patches/fake_ftp"
 
 # Add the test directory to the load path
 $:.unshift File.expand_path("../../", __FILE__)
@@ -32,7 +38,7 @@ VAGRANT_TEST_CWD = Dir.mktmpdir("vagrant-test-cwd")
 
 # Configure RSpec
 RSpec.configure do |c|
-  #c.formatter = :progress
+  c.formatter = :progress
   c.color_mode = :on
 
   if Vagrant::Util::Platform.windows?

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "vagrant/util/presence"
 
 require "optparse"
@@ -23,8 +26,6 @@ module VagrantPlugins
           o.on("--guest PORT", "Output the host port that maps to the given guest port") do |port|
             options[:guest] = port
           end
-
-          o.on("--machine-readable", "Display machine-readable output")
         end
 
         # Parse the options

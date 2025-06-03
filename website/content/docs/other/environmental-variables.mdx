@@ -140,7 +140,7 @@ This option can be overridden on a per-folder basis within your Vagrantfile
 config by setting the `SharedFoldersEnableSymlinksCreate` option to true if you
 do not wish to completely disable this feature for all VirtualBox guests.
 
-More information on the option can be read in the [VirtualBox synced folders docs page.](/docs/synced-folders/virtualbox#sharedfoldersenablesymlinkscreate)
+More information on the option can be read in the [VirtualBox synced folders docs page.](/vagrant/docs/synced-folders/virtualbox#sharedfoldersenablesymlinkscreate)
 
 ## `VAGRANT_DISABLE_SMBMFSYMLINKS`
 
@@ -268,6 +268,14 @@ detection.
 When setting this environment variable, its value will be in seconds. By default,
 it will use 30 seconds as a timeout.
 
+## `VAGRANT_PREFERRED_POWERSHELL`
+
+When executing PowerShell commands, Vagrant will prefer to use `pwsh.exe`
+over `powershell.exe` by default. This environment variable can be used to
+modify this preference and make Vagrant prefer `powershell.exe`. The value
+set in this environment variable are any supported PowerShell executables
+which currently are: `powershell` and `pwsh`.
+
 ## `VAGRANT_PREFERRED_PROVIDERS`
 
 This configures providers that Vagrant should prefer.
@@ -289,7 +297,12 @@ Vagrant will default to using a system provided `ssh` on Windows. This
 environment variable can also be used to disable that behavior to force Vagrant to
 use the embedded `ssh` executable by setting it to `0`.
 
-## `VAGRANT_WINCURL_DISABLE`
+## `VAGRANT_SUPPRESS_GO_EXPERIMENTAL_WARNING`
+
+If this is set, Vagrant-go will not output a warning message about compatibility 
+with Vagrant-ruby. This does not effect the stable Ruby release of Vagrant.
+
+## `VAGRANT_DISABLE_WINCURL`
 
 If set Vagrant will use the mingw build of curl which uses the installer provided
 ca-certificates bundle instead of the native Windows curl executable.

@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 #Requires -Modules VagrantMessages
 
 param (
@@ -17,8 +20,17 @@ try {
 }
 
 try {
-    Hyper-V\Set-VM -VM $VM -EnhancedSessionTransportType $Type
+    # HyperV 1.1 (Windows Server 2012R2) crashes on this call. Vagrantfiles before 2.2.10 do break without skipping this.
+    $present = Get-Command Hyper-V\Set-VM -ParameterName EnhancedSessionTransportType -ErrorAction SilentlyContinue
+    if($present) {
+        Hyper-V\Set-VM -VM $VM -EnhancedSessionTransportType $Type
+    }else{
+        $message = @{
+            "EnhancedSessionTransportTypeSupportPresent"=$false;
+            } | ConvertTo-Json
+        Write-OutputMessage $message
+    }
 } catch {
-    Write-ErrorMessage "Failed to assign EnhancedSessionTransportType to ${Type}: ${PSItem}"
+    Write-ErrorMessage "Failed to assign EnhancedSessionTransportType to ${Type}:${PSItem}"
     exit 1
 }

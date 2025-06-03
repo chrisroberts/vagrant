@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require_relative "../../../../base"
 require_relative "../../../../../../plugins/providers/docker/command/exec"
 
@@ -49,6 +52,17 @@ describe VagrantPlugins::DockerProvider::Command::Exec do
       it "calls Safe Exec" do
         allow(Kernel).to receive(:exec).and_return(true)
         expect(Vagrant::Util::SafeExec).to receive(:exec).with("docker", "exec", "-t", anything, "/bin/bash")
+        subject.exec_command(machine, command, options)
+      end
+    end
+    describe "with options" do
+      let(:command) { ["ls"] }
+      let(:options) { {etc: "something"} }
+
+      it "passes the options successfully" do
+        driver = instance_double("Driver")
+        expect(driver).to receive(:execute).with("docker", "exec", nil, "ls", {etc: "something"})
+        allow(machine.provider).to receive(:driver) { driver }
         subject.exec_command(machine, command, options)
       end
     end

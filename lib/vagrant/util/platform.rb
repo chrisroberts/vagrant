@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "rbconfig"
 require "shellwords"
 require "tempfile"
@@ -13,6 +16,29 @@ module Vagrant
     # This class just contains some platform checking code.
     class Platform
       class << self
+
+        # Detect architecture of host system
+        #
+        # @return [String]
+        def architecture
+          if !defined?(@_host_architecture)
+            if ENV["VAGRANT_HOST_ARCHITECTURE"].to_s != ""
+              return @_host_architecture = ENV["VAGRANT_HOST_ARCHITECTURE"]
+            end
+
+            @_host_architecture = case RbConfig::CONFIG["target_cpu"]
+              when "amd64", "x86_64", "x64"
+                "amd64"
+              when "386", "i386", "x86"
+                "i386"
+              when "arm64", "aarch64"
+                "arm64"
+              else
+                RbConfig::CONFIG["target_cpu"]
+              end
+          end
+          @_host_architecture
+        end
 
         def logger
           if !defined?(@_logger)
@@ -139,13 +165,19 @@ module Vagrant
           return @_windows_hyperv_enabled if defined?(@_windows_hyperv_enabled)
 
           @_windows_hyperv_enabled = -> {
-            ["Get-WindowsOptionalFeature", "Get-WindowsFeature"].each do |cmd_name|
-              ps_cmd = "$(#{cmd_name} -FeatureName Microsoft-Hyper-V-Hypervisor).State"
+            check_commands = Array.new.tap do |c|
+              c << "(Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-Hypervisor -Online).State"
+              c << "(Get-WindowsFeature -FeatureName Microsoft-Hyper-V-Hypervisor).State"
+            end
+            check_commands.each do |ps_cmd|
               begin
                 output = Vagrant::Util::PowerShell.execute_cmd(ps_cmd)
                 return true if output == "Enabled"
               rescue Errors::PowerShellInvalidVersion
                 logger.warn("Invalid PowerShell version detected during Hyper-V enable check")
+                return false
+              rescue Errors::PowerShellError
+                logger.warn("Powershell command not found or error on execution of command")
                 return false
               end
             end

@@ -1,7 +1,7 @@
 [
   {
     "title": "What is Vagrant?",
-    "path": "index"
+    "path": ""
   },
   {
     "title": "Vagrant vs. Other Software",
@@ -26,10 +26,14 @@
   },
   {
     "title": "Getting Started",
-    "href": "https://learn.hashicorp.com/collections/vagrant/getting-started"
+    "href": "https://developer.hashicorp.com/vagrant/tutorials/get-started"
   },
   {
     "title": "Contributing",
     "path": "contributing-guide"
+  },
+  {
+    "title": "Support",
+    "path": "support"
   }
 ]

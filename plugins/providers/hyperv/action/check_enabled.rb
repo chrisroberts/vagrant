@@ -1,5 +1,7 @@
-require "fileutils"
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
 
+require "fileutils"
 require "log4r"
 
 module VagrantPlugins

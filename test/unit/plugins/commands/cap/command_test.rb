@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../../../base", __FILE__)
 
 require Vagrant.source_root.join("plugins/commands/cap/command")
@@ -49,7 +52,7 @@ describe VagrantPlugins::CommandCap::Command do
     end
 
     context "runs against target vm" do
-      let(:argv) { ["provider", "foo", "--target=dummy"] }
+      let(:argv) { ["provider", "foo", "--target-guest=dummy"] }
       let(:cap) {
         Class.new do
           def self.foo(m)

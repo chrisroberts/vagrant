@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 module Vagrant
   # Register components in a single location that can be queried.
   #
@@ -46,6 +49,15 @@ module Vagrant
     # Iterate over the keyspace.
     def each(&block)
       @items.each do |key, _|
+        yield key, get(key)
+      end
+    end
+
+    # Iterate over the keyspace and return result
+    #
+    # @return [Array]
+    def map(&block)
+      @items.map do |key, _|
         yield key, get(key)
       end
     end

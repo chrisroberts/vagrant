@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 shared_context "virtualbox" do
   include_context "unit"
 
@@ -28,6 +31,9 @@ shared_context "virtualbox" do
     allow(subprocess).to receive(:execute).
       with("VBoxManage", "showvminfo", kind_of(String), kind_of(Hash)).
       and_return(subprocess_result(exit_code: 0))
+
+    allow(Vagrant::Util::Which).to receive(:which).and_call_original
+    allow(Vagrant::Util::Which).to receive(:which).with("locale").and_return(false)
   end
 
   around do |example|

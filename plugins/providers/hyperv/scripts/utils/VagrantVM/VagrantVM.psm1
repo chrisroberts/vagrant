@@ -1,5 +1,23 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 # Always stop when errors are encountered unless instructed not to
 $ErrorActionPreference = "Stop"
+
+# Check the version of Powershell currently in use. If it's
+# under 7.3.0 we need to restrict the maximum version of the
+# security module to prevent errors.
+# Source: https://github.com/PowerShell/PowerShell/issues/18530
+$checkVersion = $PSVersionTable.PSVersion
+if($checkVersion -eq "") {
+    $checkVersion = $(Get-Host).Version
+}
+
+if([System.Version]$checkVersion -lt [System.Version]"7.3.0") {
+    Import-Module Microsoft.Powershell.Security -MaximumVersion 3.0.0.0
+} else {
+    Import-Module Microsoft.Powershell.Security
+}
 
 # Vagrant VM creation functions
 
@@ -15,6 +33,12 @@ function New-VagrantVM {
         [string] $SourcePath,
         [parameter (Mandatory=$false)]
         [bool] $LinkedClone = $false,
+        [parameter (Mandatory=$false)]
+        [int] $Memory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $MaxMemory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $CPUCount = $null,
         [parameter(Mandatory=$false)]
         [string] $VMName
     )
@@ -75,6 +99,12 @@ function New-VagrantVMVMCX {
         [string] $SourcePath,
         [parameter (Mandatory=$false)]
         [bool] $LinkedClone = $false,
+        [parameter (Mandatory=$false)]
+        [int] $Memory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $MaxMemory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $CPUCount = $null,
         [parameter(Mandatory=$false)]
         [string] $VMName
     )
@@ -108,6 +138,16 @@ function New-VagrantVMVMCX {
 
     # Disconnect adapters from switches
     Hyper-V\Get-VMNetworkAdapter -VM $VM | Hyper-V\Disconnect-VMNetworkAdapter
+
+    # If we have a memory value provided, set it here
+    if($Memory -ne $null) {
+        Set-VagrantVMMemory -VM $VM -Memory $Memory -MaxMemory $MaxMemory
+    }
+
+    # If we have a CPU count provided, set it here
+    if($CPUCount -ne $null) {
+        Set-VagrantVMCPUS -VM $VM -CPUCount $CPUCount
+    }
 
     # Verify new VM
     $Report = Hyper-V\Compare-VM -CompatibilityReport $VMConfig
@@ -184,6 +224,12 @@ function New-VagrantVMXML {
         [string] $SourcePath,
         [parameter (Mandatory=$false)]
         [bool] $LinkedClone = $false,
+        [parameter (Mandatory=$false)]
+        [int] $Memory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $MaxMemory = $null,
+        [parameter (Mandatory=$false)]
+        [int] $CPUCount = $null,
         [parameter(Mandatory=$false)]
         [string] $VMName
     )
@@ -287,7 +333,11 @@ function New-VagrantVMXML {
 
     # Apply original VM configuration to new VM instance
 
-    $processors = $VMConfig.configuration.settings.processors.count."#text"
+    if($CPUCount -ne $null) {
+        $processors = $CPUCount
+    } else {
+        $processors = $VMConfig.configuration.settings.processors.count."#text"
+    }
     $notes = (Select-Xml -XML $VMConfig -XPath "//notes").node."#text"
     $memory = (Select-Xml -XML $VMConfig -XPath "//memory").node.Bank
     if ($memory.dynamic_memory_enabled."#text" -eq "True") {
@@ -296,10 +346,22 @@ function New-VagrantVMXML {
     else {
         $dynamicmemory = $False
     }
-    # Memory values need to be in bytes
-    $MemoryMaximumBytes = ($memory.limit."#text" -as [int]) * 1MB
-    $MemoryStartupBytes = ($memory.size."#text" -as [int]) * 1MB
-    $MemoryMinimumBytes = ($memory.reservation."#text" -as [int]) * 1MB
+
+
+    if($Memory -ne $null) {
+        $MemoryMaximumBytes = $Memory * 1MB
+        $MemoryStartupBytes = $Memory * 1MB
+        $MemoryMinimumBytes = $Memory * 1MB
+    } else {
+        $MemoryMaximumBytes = ($memory.limit."#text" -as [int]) * 1MB
+        $MemoryStartupBytes = ($memory.size."#text" -as [int]) * 1MB
+        $MemoryMinimumBytes = ($memory.reservation."#text" -as [int]) * 1MB
+    }
+
+    if($MaxMemory -ne $null) {
+        $dynamicmemory = $true
+        $MemoryMaximumBytes = $MaxMemory * 1MB
+    }
 
     $Config = @{
         ProcessorCount = $processors;

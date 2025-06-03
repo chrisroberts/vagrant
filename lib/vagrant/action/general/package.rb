@@ -1,6 +1,8 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require 'fileutils'
 require "pathname"
-
 require 'vagrant/util/safe_chdir'
 require 'vagrant/util/subprocess'
 require 'vagrant/util/presence'

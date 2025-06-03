@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "log4r"
 require "fileutils"
 require "vagrant/util/numeric"
@@ -14,8 +17,6 @@ module VagrantPlugins
         # @return [Hash] configured_disks - A hash of all the current configured disks
         def self.configure_disks(machine, defined_disks)
           return {} if defined_disks.empty?
-
-          return {} if !Vagrant::Util::Experimental.feature_enabled?("disks")
 
           machine.ui.info(I18n.t("vagrant.cap.configure_disks.start"))
 

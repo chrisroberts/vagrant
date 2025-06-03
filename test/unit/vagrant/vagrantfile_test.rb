@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require File.expand_path("../../base", __FILE__)
 
 require "pathname"
@@ -261,6 +264,44 @@ describe Vagrant::Vagrantfile do
       expect(box).to_not be_nil
       expect(box.name).to eq("base")
       expect(box.version).to eq("1.3")
+    end
+
+    it "configures with the custom box architecture" do
+      register_provider("foo")
+      configure do |config|
+        config.vm.box = "base"
+        config.vm.box_architecture = "custom-arch"
+      end
+
+      results = subject.machine_config(:default, :foo, boxes)
+      config = results[:config]
+      expect(config.vm.box).to eq("base")
+      expect(config.vm.box_architecture).to eq("custom-arch")
+    end
+
+    it "configures with the default box architecture" do
+      register_provider("foo")
+      configure do |config|
+        config.vm.box = "base"
+      end
+
+      results = subject.machine_config(:default, :foo, boxes)
+      config = results[:config]
+      expect(config.vm.box).to eq("base")
+      expect(config.vm.box_architecture).to eq(:auto)
+    end
+
+    it "configures box architecture to nil" do
+      register_provider("foo")
+      configure do |config|
+        config.vm.box = "base"
+        config.vm.box_architecture = nil
+      end
+
+      results = subject.machine_config(:default, :foo, boxes)
+      config = results[:config]
+      expect(config.vm.box).to eq("base")
+      expect(config.vm.box_architecture).to be_nil
     end
 
     it "configures with box config of other supported formats" do

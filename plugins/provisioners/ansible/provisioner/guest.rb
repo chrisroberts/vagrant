@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "tempfile"
 
 require_relative "base"
@@ -75,7 +78,7 @@ module VagrantPlugins
           raw_output = ""
 
           result = @machine.communicate.execute(
-            "ansible --version",
+            "python3 -c \"import importlib.metadata; print('ansible ' + importlib.metadata.version('ansible'))\"",
             error_class: Ansible::Errors::AnsibleNotFoundOnGuest,
             error_key: :ansible_not_found_on_guest) do |type, output|
             if type == :stdout && output.lines[0]

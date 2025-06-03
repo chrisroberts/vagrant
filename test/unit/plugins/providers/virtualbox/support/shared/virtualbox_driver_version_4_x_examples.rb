@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 shared_examples "a version 4.x virtualbox driver" do |options|
   before do
     raise ArgumentError, "Need virtualbox context to use these shared examples." if !(defined? vbox_context)
@@ -161,6 +164,7 @@ shared_examples "a version 4.x virtualbox driver" do |options|
           netmask: '255.255.255.0',
           ipv6_prefix: '0',
           status:  'Up',
+          display_name: 'HostInterfaceNetworking-vboxnet0',
         }])
       end
     end
@@ -197,8 +201,8 @@ shared_examples "a version 4.x virtualbox driver" do |options|
 
       it "returns a list with one entry for each interface" do
         expect(subject.read_host_only_interfaces).to eq([
-          {name: 'vboxnet0', ip: '172.28.128.1', netmask: '255.255.255.0', ipv6_prefix: "0", status: 'Up'},
-          {name: 'vboxnet1', ip: '10.0.0.1', netmask: '255.255.255.0', ipv6_prefix: "0", status: 'Up'},
+          {name: 'vboxnet0', ip: '172.28.128.1', netmask: '255.255.255.0', ipv6_prefix: "0", status: 'Up', display_name: 'HostInterfaceNetworking-vboxnet0'},
+          {name: 'vboxnet1', ip: '10.0.0.1', netmask: '255.255.255.0', ipv6_prefix: "0", status: 'Up', display_name: 'HostInterfaceNetworking-vboxnet1'},
         ])
       end
     end
@@ -228,6 +232,7 @@ shared_examples "a version 4.x virtualbox driver" do |options|
           ipv6: 'fde4:8dba:82e1::',
           ipv6_prefix: '64',
           status:  'Up',
+          display_name: 'HostInterfaceNetworking-vboxnet1'
         }])
       end
     end

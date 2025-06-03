@@ -107,7 +107,6 @@ end
 
 env = nil
 begin
-  require 'log4r'
   require 'vagrant'
   require 'vagrant/bundler'
   require 'vagrant/cli'
@@ -204,9 +203,17 @@ begin
     end
   end
 
-  if !Vagrant.in_installer? && !Vagrant.very_quiet?
-    # If we're not in the installer, warn.
-    env.ui.warn(I18n.t("vagrant.general.not_in_installer") + "\n", prefix: false)
+  # If not being run from the installer, check if expected tools
+  # are available.
+  if !Vagrant.in_installer?
+    missing_tools = Vagrant.detect_missing_tools
+
+    if !missing_tools.empty?
+      env.ui.warn(
+        I18n.t("vagrant.general.not_in_installer", tools: missing_tools.sort.join(", ")) + "\n",
+        prefix: false
+      )
+    end
   end
 
   # Acceptable experimental flag values include:

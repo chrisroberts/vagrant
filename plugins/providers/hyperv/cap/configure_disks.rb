@@ -1,3 +1,6 @@
+# Copyright (c) HashiCorp, Inc.
+# SPDX-License-Identifier: BUSL-1.1
+
 require "log4r"
 require "fileutils"
 require "vagrant/util/numeric"
@@ -15,8 +18,6 @@ module VagrantPlugins
         def self.configure_disks(machine, defined_disks)
           return {} if defined_disks.empty?
 
-          return {} if !Vagrant::Util::Experimental.feature_enabled?("disks")
-
           machine.ui.info(I18n.t("vagrant.cap.configure_disks.start"))
 
           current_disks = machine.provider.driver.list_hdds
@@ -26,13 +27,13 @@ module VagrantPlugins
           defined_disks.each do |disk|
             if disk.type == :disk
               disk_data = handle_configure_disk(machine, disk, current_disks)
-              configured_disks[:disk] << disk_data unless disk_data.empty?
+              configured_disks[:disk] << disk_data if !disk_data.empty?
             elsif disk.type == :floppy
               # TODO: Write me
               machine.ui.info(I18n.t("vagrant.cap.configure_disks.floppy_not_supported", name: disk.name))
             elsif disk.type == :dvd
-              # TODO: Write me
-              machine.ui.info(I18n.t("vagrant.cap.configure_disks.dvd_not_supported", name: disk.name))
+              disk_data = handle_configure_dvd(machine, disk)
+              configured_disks[:dvd] << disk_data if !disk_data.empty?
             end
           end
 
@@ -50,9 +51,16 @@ module VagrantPlugins
           if disk.primary
             # Ensure we grab the proper primary disk
             # We can't rely on the order of `all_disks`, as they will not
-            # always come in port order, but primary should always be Location 0 Number 0.
+            # always come in port order, but primary should always be the
+            # first disk.
 
-            current_disk = all_disks.detect { |d| d["ControllerLocation"] == 0 && d["ControllerNumber"] == 0 }
+            sorted_disks = all_disks.sort_by { |d|
+              [d["ControllerNumber"].to_i, d["ControllerLocation"].to_i]
+            }
+
+            LOGGER.debug("sorted disks for primary detection: #{sorted_disks}")
+
+            current_disk = sorted_disks.first
 
             # Need to get actual disk info to obtain UUID instead of what's returned
             #
@@ -95,6 +103,46 @@ module VagrantPlugins
           end
 
           disk_metadata
+        end
+
+        def self.handle_configure_dvd(machine, dvd)
+          dvd_location = File.expand_path(dvd.file)
+
+          find_dvd_disk = proc {
+            catch(:found) do
+              machine.provider.driver.read_scsi_controllers.each do |controller|
+                controller["Drives"].each do |disk|
+                  throw :found, disk if File.expand_path(disk["Path"]) == dvd_location
+                end
+              end
+
+              nil
+            end
+          }
+
+          generate_dvd_metadata = proc { |disk|
+            disk.slice(
+              "Name", "Id", "Path",
+              "ControllerLocation", "ControllerNumber",
+              "ControllerType"
+            )
+          }
+
+          # If the disk is already attached just
+          # return the information
+          if dvd_attached = find_dvd_disk.call
+            return generate_dvd_metadata.call(dvd_attached)
+          end
+
+          # Attach the disk
+          machine.provider.driver.attach_dvd(dvd_location)
+
+          # Find disk and return information
+          disk = find_dvd_disk.call
+          return generate_dvd_metadata.call(disk) if disk
+
+          LOGGER.warn("failed to locate dvd on controller, stubbing")
+          {"Path" => dvd_location}
         end
 
         # Check to see if current disk is configured based on defined_disks
@@ -152,13 +200,13 @@ module VagrantPlugins
 
             LOGGER.info("Attempting to create a new disk file '#{disk_file}' of size '#{disk_config.size}' bytes")
 
-            machine.provider.driver.create_disk(disk_file, disk_config.size, disk_provider_config)
+            machine.provider.driver.create_disk(disk_file, disk_config.size, **disk_provider_config)
           end
 
           disk_info = machine.provider.driver.get_disk(disk_file)
           disk_metadata = {UUID: disk_info["DiskIdentifier"], Name: disk_config.name, Path: disk_info["Path"]}
 
-          machine.provider.driver.attach_disk(disk_file, disk_provider_config)
+          machine.provider.driver.attach_disk(disk_file, **disk_provider_config)
 
           disk_metadata
         end

@@ -1,7 +1,20 @@
 [
   {
-    "title": "Back to Vagrant Documentation",
-    "href": "/docs"
+    "title": "HCP Vagrant",
+    "routes": [
+      {
+        "title": "HCP Vagrant Registry Migration Guide",
+        "path": "hcp-vagrant/migration-guide"
+      },
+      {
+        "title": "Migration Troubleshooting",
+        "path": "hcp-vagrant/troubleshooting"
+      },
+      {
+          "title": "Post Migration",
+          "path": "hcp-vagrant/post-migration-guide"
+      }
+    ]
   },
   {
     "title": "Boxes",
@@ -21,6 +34,10 @@
       {
         "title": "Creating a New Version",
         "path": "boxes/create-version"
+      },
+      {
+        "title": "Box Provider Architecture",
+        "path": "boxes/architecture"
       },
       {
         "title": "Distributing",
@@ -92,6 +109,15 @@
   },
   {
     "title": "API",
-    "path": "api"
+    "routes": [
+      {
+        "title": "v2",
+        "path": "api/v2"
+      },
+      {
+        "title": "v1",
+        "path": "api/v1"
+      }
+    ]
   }
 ]
