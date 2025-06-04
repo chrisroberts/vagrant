@@ -43,7 +43,6 @@ describe "VagrantPlugins::GuestLinux::Cap::PersistMountSharedFolder" do
       and_return(["uid=#{options_uid},gid=#{options_gid}", options_uid, options_gid])
     allow(folder_plugin).to receive(:capability).with(:mount_type).and_return("vboxsf")
     allow(cap).to receive(:fstab_exists?).and_return(true)
-    allow(cap).to receive(:contains_vagrant_data?).and_return(true)
   end
 
   after do
@@ -105,27 +104,6 @@ describe "VagrantPlugins::GuestLinux::Cap::PersistMountSharedFolder" do
       end
     end
 
-    context "fstab exists but does not have vagrant data" do
-      before do
-        allow(cap).to receive(:fstab_exists?).and_return(true)
-        allow(cap).to receive(:contains_vagrant_data?).and_return(false)
-        # Ensure /etc/fstab is not being modified
-        expect(comm).not_to receive(:sudo).with(/sed -i .? \/etc\/fstab/)
-      end
-
-      it "creates /etc/fstab" do
-        expect(cap).to receive(:remove_vagrant_managed_fstab)
-        expect(comm).to receive(:sudo).with(/>> \/etc\/fstab/)
-        cap.persist_mount_shared_folder(machine, [])
-      end
-
-      it "does not remove contents of /etc/fstab" do
-        expect(cap).to receive(:remove_vagrant_managed_fstab)
-        expect(comm).not_to receive(:sudo).with(/echo '' >> \/etc\/fstab/)
-        cap.persist_mount_shared_folder(machine, nil)
-      end
-    end
-
     context "smb folder" do
       let (:fstab_folders) {
         Vagrant::Plugin::V2::SyncedFolder::Collection[
@@ -159,4 +137,44 @@ describe "VagrantPlugins::GuestLinux::Cap::PersistMountSharedFolder" do
       end
     end
   end
+
+  describe ".remove_vagrant_managed_fstab" do
+    let(:ui){ Vagrant::UI::Silent.new }
+
+    before do
+      allow(comm).to receive(:sudo).with(any_args)
+      allow(machine).to receive(:ui).and_return(ui)
+      allow(cap).to receive(:fstab_exists?).and_return(true)
+    end
+
+    it "removes vagrant managed fstab entries" do
+      allow(cap).to receive(:contains_vagrant_data?).and_return(true)
+      expect(comm).to receive(:sudo).with("sed -i '/#VAGRANT-BEGIN/,/#VAGRANT-END/d' /etc/fstab")
+      cap.remove_vagrant_managed_fstab(machine)
+    end
+
+    context "fstab does not exist" do
+      before do
+        allow(cap).to receive(:fstab_exists?).and_return(false)
+      end
+
+      it "does not try to remove fstab entries" do
+        expect(comm).not_to receive(:sudo).with("sed -i '/#VAGRANT-BEGIN/,/#VAGRANT-END/d' /etc/fstab")
+        cap.remove_vagrant_managed_fstab(machine)
+      end
+    end
+
+    context "fstab does not contain vagrant data" do
+      before do
+        allow(comm).to receive(:sudo).with("grep '#VAGRANT-BEGIN' /etc/fstab").and_return(false)
+      end
+
+      it "does not try to remove fstab entries" do
+        expect(comm).not_to receive(:sudo).with("sed -i '/#VAGRANT-BEGIN/,/#VAGRANT-END/d' /etc/fstab")
+        cap.remove_vagrant_managed_fstab(machine)
+      end
+    end
+
+  end
+
 end
