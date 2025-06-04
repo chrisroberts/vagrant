@@ -139,26 +139,31 @@ describe "VagrantPlugins::GuestLinux::Cap::PersistMountSharedFolder" do
   end
 
   describe ".remove_vagrant_managed_fstab" do
-    let(:ui){ Vagrant::UI::Silent.new }
+    # let(:ui){ Vagrant::UI::Silent.new } ## This can be removed because it is not needed
+
+    # Define this value to control the value of the call to fstab_exists?
+    let(:fstab_exists) { true }
 
     before do
       allow(comm).to receive(:sudo).with(any_args)
-      allow(machine).to receive(:ui).and_return(ui)
-      allow(cap).to receive(:fstab_exists?).and_return(true)
+      # allow(machine).to receive(:ui).and_return(ui) This can be removed
+      allow(cap).to receive(:fstab_exists?).and_return(fstab_exists) # Mock the fstab_exists? method and return the value defined above
     end
 
     it "removes vagrant managed fstab entries" do
-      allow(cap).to receive(:contains_vagrant_data?).and_return(true)
+      # allow(cap).to receive(:contains_vagrant_data?).and_return(true) # This is expected to be called, and should be an error if not, so use expect instead of allow
+      expect(cap).to receive(:contains_vagrant_data?).and_return(true)
       expect(comm).to receive(:sudo).with("sed -i '/#VAGRANT-BEGIN/,/#VAGRANT-END/d' /etc/fstab")
       cap.remove_vagrant_managed_fstab(machine)
     end
 
     context "fstab does not exist" do
-      before do
-        allow(cap).to receive(:fstab_exists?).and_return(false)
-      end
+      # Because the control of the mock fstab_exists? result is controlled by
+      # the let defined above, just that needs to be adjusted
+      let(:fstab_exists) { false }
 
       it "does not try to remove fstab entries" do
+        expect(cap).not_to receive(:contains_vagrant_data?) # Check that contents isn't being checked if the file doesn't exist
         expect(comm).not_to receive(:sudo).with("sed -i '/#VAGRANT-BEGIN/,/#VAGRANT-END/d' /etc/fstab")
         cap.remove_vagrant_managed_fstab(machine)
       end
@@ -166,7 +171,9 @@ describe "VagrantPlugins::GuestLinux::Cap::PersistMountSharedFolder" do
 
     context "fstab does not contain vagrant data" do
       before do
-        allow(comm).to receive(:sudo).with("grep '#VAGRANT-BEGIN' /etc/fstab").and_return(false)
+        # allow(comm).to receive(:sudo).with("grep '#VAGRANT-BEGIN' /etc/fstab").and_return(false) # Use expect here to verify the grep is being run
+        # Converting to expect also shows the original was not called. This is because the method that needs to be stubbed here is `:test` and not `:sudo`
+        expect(comm).to receive(:test).with("grep '#VAGRANT-BEGIN' /etc/fstab").and_return(false)
       end
 
       it "does not try to remove fstab entries" do
