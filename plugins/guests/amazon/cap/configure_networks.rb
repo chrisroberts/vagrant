@@ -1,5 +1,5 @@
 # Copyright (c) HashiCorp, Inc.
-# SPDX-License-Identifier: BUSL-1.1
+# SPDX-License-Identifier: MIT
 
 require_relative "../../debian/cap/configure_networks"
 require_relative "../../redhat/cap/configure_networks"
